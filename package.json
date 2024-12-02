@@ -2,9 +2,6 @@
   "name": "pubgpal",
   "version": "1.0.0",
   "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
   "keywords": [],
   "author": "",
   "license": "ISC",
@@ -12,7 +9,8 @@
   "dependencies": {
     "axios": "^1.7.8",
     "discord.js": "^14.16.3",
-    "dotenv": "^16.4.5"
+    "dotenv": "^16.4.5",
+    "winston": "^3.x"
   },
   "scripts": {
     "start": "node src/index.js",
@@ -23,12 +21,6 @@
     "deploy:prod": "node scripts/deploy.js production",
     "logs": "tail -f logs/combined.log",
     "errors": "tail -f logs/error.log"
-  },
-  "dependencies": {
-    "discord.js": "^14.x",
-    "axios": "^1.x",
-    "dotenv": "^16.x",
-    "winston": "^3.x"
   },
   "devDependencies": {
     "chai": "^4.x",
