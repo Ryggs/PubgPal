@@ -1,36 +1,4 @@
-# Terms of Use & Privacy Policy for PUBG Stats Bot
-
-## Terms of Use
-
-### 1. Acceptance of Terms
-By inviting PUBG Stats Bot to your Discord server or using its commands, you agree to these terms of use and privacy policy.
-
-### 2. Description of Service
-PUBG Stats Bot provides Discord users with PUBG (PlayerUnknown's Battlegrounds) game statistics, including match history, player stats, and season rankings.
-
-### 3. Proper Usage
-- Use the bot's commands as intended
-- Do not attempt to abuse, exploit, or overload the bot's services
-- Do not use the bot for any illegal purposes
-- Do not attempt to reverse engineer or copy the bot
-
-### 4. Service Availability
-- The bot is provided "as is" without warranties of any kind
-- We may modify or discontinue services at any time
-- We do not guarantee 100% uptime or availability
-- Service interruptions may occur for maintenance or updates
-
-### 5. API Usage
-- The bot uses the official PUBG API
-- Usage is subject to PUBG's API terms and rate limits
-- Service may be affected by PUBG API availability
-
-### 6. User Responsibilities
-- Ensure accurate PUBG usernames when using commands
-- Report any bugs or issues through appropriate channels
-- Keep your Discord server settings appropriately configured
-
-## Privacy Policy
+# Privacy Policy
 
 ### 1. Data Collection
 We collect:

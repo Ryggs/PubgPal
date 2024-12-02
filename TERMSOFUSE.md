@@ -1,14 +1,14 @@
-# Terms of Use - PUBG Stats Bot
+# Terms of Use - PUBGPal Bot
 
 ## 1. Acceptance of Terms
-By inviting PUBG Stats Bot to your Discord server or using its commands, you agree to these terms of use.
+By inviting PUBGpal Bot to your Discord server or using its commands, you agree to these terms of use.
 
 ## 2. Description of Service
-PUBG Stats Bot provides Discord users with PUBG (PlayerUnknown's Battlegrounds) game statistics, including match history, player stats, and season rankings.
+PUBGpal Bot provides Discord users with PUBG (PlayerUnknown's Battlegrounds) game statistics, including match history, player stats, and season rankings.
 
 ## 3. Proper Usage
 - Use the bot's commands as intended
-- Do not attempt to abuse, exploit, or overload the bot's services
+- Do not attempt to abuse, exploit or overload the bot's services
 - Do not use the bot for any illegal purposes
 - Do not attempt to reverse engineer or copy the bot
 
@@ -44,6 +44,6 @@ The service is provided "as is" without any warranty of any kind.
 
 ## 10. Contact
 For questions about these terms:
-- GitHub: [https://github.com/Ryggs](https://github.com/Ryggs)
+- GitHub: [https://github.com/Ryggs](Ryggs)
 
 Last Updated: December 3, 2024
