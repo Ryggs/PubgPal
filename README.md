@@ -7,7 +7,7 @@
 [![Node.js Version](https://img.shields.io/badge/Node.js-16.x-green.svg)](https://nodejs.org)
 [![Discord.js](https://img.shields.io/badge/Discord.js-v14-blue.svg)](https://discord.js.org)
 
-A powerful Discord bot that provides real-time PUBG (PlayerUnknown's Battlegrounds) statistics, match history, and player rankings.
+A powerful Discord bot that provides real-time PUBG (PlayerUnknown's Battlegrounds) statistics, match history and player rankings.
 
 [Add to Discord](#) | [Support Server](#) | [Report Bug](https://github.com/Ryggs/pubg-stats-bot/issues)
 
