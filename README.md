@@ -1,2 +1,2 @@
 ## Legal
-Please read our [Terms of Use and Privacy Policy](POLICY.md) before using the bot.
+Please read our [Terms of Use and Privacy Policy](PRIVACYPOLICY.md) before using the bot.
