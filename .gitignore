@@ -18,6 +18,12 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# Deployment specific
+.deploy/private/
+deploy/configs/local.json
+.railway/
+.vercel/
+
 # Runtime data
 pids
 *.pid

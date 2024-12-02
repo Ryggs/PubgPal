@@ -14,7 +14,27 @@
     "discord.js": "^14.16.3",
     "dotenv": "^16.4.5"
   },
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "test": "mocha tests/**/*.test.js",
+    "lint": "eslint src/",
+    "deploy:staging": "node scripts/deploy.js staging",
+    "deploy:prod": "node scripts/deploy.js production",
+    "logs": "tail -f logs/combined.log",
+    "errors": "tail -f logs/error.log"
+  },
+  "dependencies": {
+    "discord.js": "^14.x",
+    "axios": "^1.x",
+    "dotenv": "^16.x",
+    "winston": "^3.x"
+  },
   "devDependencies": {
-    "nodemon": "^3.1.7"
+    "chai": "^4.x",
+    "mocha": "^10.x",
+    "nodemon": "^2.x",
+    "sinon": "^15.x",
+    "eslint": "^8.x"
   }
 }
