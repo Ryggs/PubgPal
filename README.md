@@ -7,7 +7,7 @@
 [![Node.js Version](https://img.shields.io/badge/Node.js-16.x-green.svg)](https://nodejs.org)
 [![Discord.js](https://img.shields.io/badge/Discord.js-v14-blue.svg)](https://discord.js.org)
 
-A powerful Discord bot that provides real-time PUBG (PlayerUnknown's Battlegrounds) statistics, match history, and player rankings.
+A powerful Discord bot that provides real-time PUBG (PlayerUnknown's Battlegrounds) statistics, match history and player rankings.
 
 [Add to Discord](#) | [Support Server](#) | [Report Bug](https://github.com/Ryggs/pubg-stats-bot/issues)
 
@@ -32,9 +32,8 @@ A powerful Discord bot that provides real-time PUBG (PlayerUnknown's Battlegroun
 - Rank progression tracking
 - Competitive statistics
 - Division placement
-
+- 
 ## 🤖 Commands
-
 |
  Command 
 |
@@ -43,34 +42,26 @@ A powerful Discord bot that provides real-time PUBG (PlayerUnknown's Battlegroun
  Usage 
 |
 |
----------
+----
 |
--------------
+----
 |
---------
-|
+----
 |
 `/matchhistory`
 |
  View recent match details 
 |
 `/matchhistory [username] [matches?]`
-|
-|
 `/playerstats`
 |
  Check player statistics 
 |
 `/playerstats [username]`
-|
-|
 `/seasonrank`
 |
  View season ranking 
 |
-`/seasonrank [username]`
-|
-
 ## 🚀 Quick Start
 
 1. **Invite the Bot**
@@ -79,9 +70,9 @@ A powerful Discord bot that provides real-time PUBG (PlayerUnknown's Battlegroun
 
 2. **Basic Usage**
    ```
-   /matchhistory Ryggs
-   /playerstats Ryggs
-   /seasonrank Ryggs
+   /matchhistory NerdyToken
+   /playerstats NerdyToken
+   /seasonrank NerdyToken
    ```
 
 ## 💻 Installation
