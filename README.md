@@ -188,15 +188,10 @@ Need help? Here are your options:
 2. Join our [Discord Server](#)
 3. Open a [GitHub Issue](https://github.com/Ryggs/pubg-stats-bot/issues)
 
-## 🙏 Acknowledgments
-
-- PUBG API for game data
-- Discord.js team
-- All our contributors
-
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+Any use of this code must include clear attribution to the original repository at [PUBGPal](https://github.com/Ryggs/PubgPal) bot
 
 ---
 
@@ -204,6 +199,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 Made with ❤️ by [Ryggs](https://github.com/Ryggs)
 
-⭐ Star us on GitHub | [Report Issues](https://github.com/Ryggs/pubg-stats-bot/issues)
+⭐ Star us on GitHub | [Report Issues](https://github.com/Ryggs/PubgPal/issues)
 
 </div>
