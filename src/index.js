@@ -39,7 +39,17 @@ for (const file of eventFiles) {
         client.on(event.name, (...args) => event.execute(...args));
     }
 }
-
+client.once('ready', async () => {
+    try {
+        console.log('Started refreshing application (/) commands.');
+        await client.application.commands.set(
+            [...client.commands.values()].map(c => c.data)
+        );
+        console.log('Successfully reloaded application (/) commands.');
+    } catch (error) {
+        console.error('Error refreshing commands:', error);
+    }
+});
 // Error handling
 client.on('error', error => {
     console.error('Discord client error:', error);
