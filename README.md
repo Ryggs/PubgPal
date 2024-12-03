@@ -117,7 +117,7 @@ A powerful Discord bot that provides real-time PUBG (PlayerUnknown's Battlegroun
 
 ## 📜 Legal
 - [Terms of Use](TERMSOFUSE.md)
-- [Privacy Policy](POLICY.md)
+- [Privacy Policy](PRIVACYPOLICY.md)
 
 ## 🔧 Configuration
 
