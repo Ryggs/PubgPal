@@ -1,8 +1,28 @@
 const { SlashCommandBuilder, AttachmentBuilder } = require('discord.js');
 const { getPUBGPlayer, getMatchData } = require('../services/pubgApi');
-const { createCanvas, GlobalFonts } = require('@napi-rs/canvas');
+const { createCanvas } = require('@napi-rs/canvas');
+
+// Debug function to log match data
+function debugMatchData(match) {
+    console.log('Match Data:', {
+        stats: {
+            placement: match.playerStats.attributes.stats.winPlace,
+            kills: match.playerStats.attributes.stats.kills,
+            assists: match.playerStats.attributes.stats.assists,
+            damage: match.playerStats.attributes.stats.damageDealt,
+            timeSurvived: match.playerStats.attributes.stats.timeSurvived
+        },
+        matchInfo: {
+            type: match.matchData.data.attributes.matchType,
+            total: match.matchData.data.attributes.totalParticipants,
+            createdAt: match.matchData.data.attributes.createdAt
+        }
+    });
+}
 
 function createMatchHistory(matches) {
+    console.log('Creating match history for', matches.length, 'matches');
+    
     const rowHeight = 100;
     const width = 1200;
     const height = matches.length * rowHeight;
@@ -10,95 +30,38 @@ function createMatchHistory(matches) {
     const canvas = createCanvas(width, height);
     const ctx = canvas.getContext('2d');
 
+    // Log canvas dimensions
+    console.log('Canvas dimensions:', { width, height });
+
     // Background
     ctx.fillStyle = '#1A1A1A';
     ctx.fillRect(0, 0, width, height);
 
     matches.forEach((match, index) => {
-        const stats = match.playerStats.attributes.stats;
-        const matchInfo = match.matchData.data.attributes;
-        const y = index * rowHeight;
+        try {
+            console.log(`Processing match ${index + 1}`);
+            const stats = match.playerStats.attributes.stats;
+            const matchInfo = match.matchData.data.attributes;
+            const y = index * rowHeight;
 
-        // Row background
-        ctx.fillStyle = '#2A2A2A';
-        ctx.fillRect(0, y, width, 95);
+            // Row background
+            ctx.fillStyle = '#2A2A2A';
+            ctx.fillRect(0, y, width, 95);
 
-        // Win indicator
-        if (stats.winPlace === 1) {
-            ctx.fillStyle = '#FFD700';
-            ctx.fillRect(0, y, 4, 95);
+            // TEST: Draw a simple text to verify text rendering works
+            ctx.fillStyle = '#FFFFFF';
+            ctx.font = '20px sans-serif';
+            const testText = `Match ${index + 1}: Place #${stats.winPlace}, Kills: ${stats.kills}`;
+            console.log('Drawing text:', testText);
+            ctx.fillText(testText, 20, y + 50);
+
+        } catch (error) {
+            console.error(`Error processing match ${index}:`, error);
         }
-
-        // Reset text alignment
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'middle';
-
-        // Placement
-        ctx.fillStyle = '#FFD700';
-        ctx.font = 'bold 42px sans-serif';
-        ctx.fillText(`#${stats.winPlace}`, 20, y + 47);
-
-        ctx.fillStyle = '#888888';
-        ctx.font = '24px sans-serif';
-        ctx.fillText(`/${matchInfo.totalParticipants}`, 90, y + 47);
-
-        // Time ago
-        const timeSince = getTimeSinceMatch(new Date(matchInfo.createdAt));
-        ctx.font = '16px sans-serif';
-        ctx.fillText(timeSince, 250, y + 35);
-
-        // Game mode
-        ctx.fillStyle = '#FFFFFF';
-        ctx.font = '20px sans-serif';
-        ctx.fillText(matchInfo.matchType === 'competitive' ? 'NORMAL' : 'CASUAL MODE', 250, y + 65);
-        
-        // Game type
-        ctx.fillText('SQUAD TPP', 500, y + 47);
-
-        // Stats section
-        ctx.textAlign = 'center';
-        
-        // Kills
-        drawStat(ctx, stats.kills.toString(), 'KILLS', 700, y + 47);
-        
-        // Assists
-        drawStat(ctx, stats.assists.toString(), 'ASSISTS', 850, y + 47);
-        
-        // Damage
-        drawStat(ctx, Math.round(stats.damageDealt).toString(), 'DAMAGE', 1000, y + 47);
-        
-        // Time
-        drawStat(ctx, formatTime(stats.timeSurvived), 'SURVIVAL', 1150, y + 47);
     });
 
+    console.log('Finished creating match history');
     return canvas;
-}
-
-function drawStat(ctx, value, label, x, y) {
-    // Value
-    ctx.fillStyle = '#FFFFFF';
-    ctx.font = '24px sans-serif';
-    ctx.fillText(value, x, y - 10);
-    
-    // Label
-    ctx.fillStyle = '#888888';
-    ctx.font = '14px sans-serif';
-    ctx.fillText(label, x, y + 15);
-}
-
-function formatTime(seconds) {
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = Math.floor(seconds % 60);
-    return `${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
-}
-
-function getTimeSinceMatch(date) {
-    const hours = Math.floor((new Date() - date) / (1000 * 60 * 60));
-    if (hours < 24) {
-        return `${hours} HOURS AGO`;
-    }
-    const days = Math.floor(hours / 24);
-    return `${days} DAY${days > 1 ? 'S' : ''} AGO`;
 }
 
 module.exports = {
@@ -115,27 +78,43 @@ module.exports = {
         await interaction.deferReply();
 
         try {
+            console.log('Starting matchhistory command');
             const username = interaction.options.getString('username');
+            console.log('Username:', username);
+
+            // Get player data
             const playerData = await getPUBGPlayer(username);
+            console.log('Got player data');
+
             const matchIds = playerData.relationships.matches.data.slice(0, 8);
+            console.log('Match IDs:', matchIds);
 
             const matches = await Promise.all(
                 matchIds.map(async match => {
                     const matchData = await getMatchData(match.id);
-                    return {
-                        matchData,
-                        playerStats: matchData.included.find(
-                            item => item.type === 'participant' && 
-                            item.attributes.stats.name.toLowerCase() === username.toLowerCase()
-                        )
-                    };
+                    const playerStats = matchData.included.find(
+                        item => item.type === 'participant' && 
+                        item.attributes.stats.name.toLowerCase() === username.toLowerCase()
+                    );
+                    return { matchData, playerStats };
                 })
             );
 
+            console.log('Got all match data');
+            matches.forEach((match, index) => {
+                console.log(`Match ${index + 1} debug data:`);
+                debugMatchData(match);
+            });
+
             const canvas = createMatchHistory(matches);
+            console.log('Created canvas');
+
             const buffer = canvas.toBuffer('image/png');
+            console.log('Created buffer');
+
             const attachment = new AttachmentBuilder(buffer, { name: 'match-history.png' });
             await interaction.editReply({ files: [attachment] });
+            console.log('Sent response');
 
         } catch (error) {
             console.error('Error in matchhistory command:', error);
