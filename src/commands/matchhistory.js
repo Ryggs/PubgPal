@@ -37,51 +37,91 @@ function getMapBackgroundUrl(mapName) {
         // Fall back to full map if thumbnail not found
         return MAP_ASSETS[mapName] || '';
 }
+
 function generateMatchHistoryHTML(matches) {
     return `
     <!DOCTYPE html>
     <html>
     <head>
         <style>
-            body { margin: 0; padding: 0; background: #1A1A1A; font-family: Arial; }
+            body { 
+                margin: 0; 
+                padding: 0; 
+                background: #1A1A1A; 
+                font-family: Arial, sans-serif;
+            }
             .row { 
                 display: flex; 
                 height: 100px; 
                 background: #2A2A2A;
                 color: white;
                 align-items: center;
-                padding: 0 20px;
-                border-bottom: 2px solid #1A1A1A;
+                margin-bottom: 2px;
                 position: relative;
             }
-            .win { border-left: 4px solid #FFD700; }
+            .win-indicator {
+                position: absolute;
+                left: 0;
+                top: 0;
+                bottom: 0;
+                width: 4px;
+                background: #FFD700;
+            }
             .placement { 
-                color: #FFD700; 
-                font-size: 42px; 
+                width: 150px;
+                padding-left: 20px;
+                display: flex;
+                align-items: baseline;
+            }
+            .placement-number {
+                color: #FFD700;
+                font-size: 42px;
                 font-weight: bold;
-                width: 180px;
             }
-            .info {
-                width: 220px;
+            .placement-total {
+                color: #666;
+                font-size: 24px;
+                margin-left: 4px;
             }
-            .time { 
-                color: #888; 
-                font-size: 16px;
+            .match-info {
+                width: 200px;
+            }
+            .time-ago {
+                color: #666;
+                font-size: 14px;
+                text-transform: uppercase;
                 margin-bottom: 4px;
             }
-            .mode { font-size: 20px; }
-            .squad { width: 180px; font-size: 20px; }
-            .stats {
-                display: grid;
-                grid-template-columns: repeat(4, 100px);
-                gap: 20px;
-                text-align: center;
+            .mode {
+                font-size: 18px;
+                text-transform: uppercase;
             }
-            .stat-value { font-size: 24px; }
-            .stat-label { 
-                color: #888; 
-                font-size: 14px;
-                margin-top: 4px;
+            .game-type {
+                width: 200px;
+                font-size: 18px;
+                text-transform: uppercase;
+            }
+            .stats {
+                display: flex;
+                flex: 1;
+                justify-content: center;
+                gap: 100px;
+            }
+            .stat {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                width: 80px;
+            }
+            .stat-value {
+                font-size: 24px;
+                color: white;
+                margin-bottom: 4px;
+            }
+            .stat-label {
+                font-size: 12px;
+                color: #666;
+                text-transform: uppercase;
             }
         </style>
     </head>
@@ -89,28 +129,34 @@ function generateMatchHistoryHTML(matches) {
         ${matches.map(match => {
             const stats = match.playerStats.attributes.stats;
             const matchInfo = match.matchData.data.attributes;
+            const isWin = stats.winPlace === 1;
+
             return `
-            <div class="row ${stats.winPlace === 1 ? 'win' : ''}">
-                <div class="placement">#${stats.winPlace}/64</div>
-                <div class="info">
-                    <div class="time">${getTimeSinceMatch(new Date(matchInfo.createdAt))}</div>
+            <div class="row">
+                ${isWin ? '<div class="win-indicator"></div>' : ''}
+                <div class="placement">
+                    <span class="placement-number">#${stats.winPlace}</span>
+                    <span class="placement-total">/64</span>
+                </div>
+                <div class="match-info">
+                    <div class="time-ago">${getTimeSinceMatch(new Date(matchInfo.createdAt))}</div>
                     <div class="mode">${matchInfo.matchType === 'competitive' ? 'NORMAL' : 'CASUAL MODE'}</div>
                 </div>
-                <div class="squad">SQUAD TPP</div>
+                <div class="game-type">SQUAD TPP</div>
                 <div class="stats">
-                    <div>
+                    <div class="stat">
                         <div class="stat-value">${stats.kills}</div>
                         <div class="stat-label">KILLS</div>
                     </div>
-                    <div>
+                    <div class="stat">
                         <div class="stat-value">${stats.assists}</div>
                         <div class="stat-label">ASSISTS</div>
                     </div>
-                    <div>
+                    <div class="stat">
                         <div class="stat-value">${Math.round(stats.damageDealt)}</div>
                         <div class="stat-label">DAMAGE</div>
                     </div>
-                    <div>
+                    <div class="stat">
                         <div class="stat-value">${formatTime(stats.timeSurvived)}</div>
                         <div class="stat-label">SURVIVAL</div>
                     </div>
