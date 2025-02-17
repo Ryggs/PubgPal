@@ -1,39 +1,7 @@
 const { SlashCommandBuilder, AttachmentBuilder } = require('discord.js');
 const { getPUBGPlayer, getMatchData } = require('../services/pubgApi');
-const sharp = require('sharp');
-
-function generateMatchHistorySVG(matches) {
-    return `
-    <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800">
-        <rect width="1200" height="800" fill="#1A1A1A"/>
-        
-        ${matches.map((match, index) => {
-            const stats = match.playerStats.attributes.stats;
-            const matchInfo = match.matchData.data.attributes;
-            
-            return `
-            <g transform="translate(0,${index * 100})">
-                <!-- Simple row background -->
-                <rect width="1200" height="95" fill="#2A2A2A"/>
-                
-                <!-- Basic text elements -->
-                <text x="20" y="60" fill="#FFD700" font-family="Arial" font-size="42" font-weight="bold">
-                    #${stats.winPlace}
-                </text>
-                
-                <text x="120" y="60" fill="white" font-family="Arial" font-size="24">
-                    /${matchInfo.totalParticipants}
-                </text>
-                
-                <!-- Stats as simple text -->
-                <text x="700" y="60" fill="white" font-family="Arial" font-size="24">
-                    K: ${stats.kills} A: ${stats.assists} D: ${Math.round(stats.damageDealt)}
-                </text>
-            </g>
-            `;
-        }).join('')}
-    </svg>`;
-}
+const { createCanvas } = require('canvas');
+const fs = require('fs');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -69,21 +37,74 @@ module.exports = {
                 })
             );
 
-            // Generate and convert SVG
-            const svgContent = generateMatchHistorySVG(matches);
-            
-            // Log SVG content for debugging
-            console.log('Generated SVG:', svgContent);
+            // Create canvas
+            const canvas = createCanvas(1200, matches.length * 100);
+            const ctx = canvas.getContext('2d');
 
-            // Try adding content type and encoding
-            const svgWithHeader = `<?xml version="1.0" encoding="UTF-8"?>${svgContent}`;
-            
-            // Convert to PNG
-            const pngBuffer = await sharp(Buffer.from(svgWithHeader))
-                .png()
-                .toBuffer();
+            // Set background
+            ctx.fillStyle = '#1A1A1A';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            const attachment = new AttachmentBuilder(pngBuffer, { name: 'match-history.png' });
+            // Draw each match row
+            matches.forEach((match, index) => {
+                const y = index * 100;
+                const stats = match.playerStats.attributes.stats;
+                const matchInfo = match.matchData.data.attributes;
+                const timeSince = getTimeSinceMatch(new Date(matchInfo.createdAt));
+
+                // Row background
+                ctx.fillStyle = '#2A2A2A';
+                ctx.fillRect(0, y, canvas.width, 95);
+
+                // Win indicator (yellow bar)
+                if (stats.winPlace === 1) {
+                    ctx.fillStyle = '#FFD700';
+                    ctx.fillRect(0, y, 4, 95);
+                }
+
+                // Placement number
+                ctx.fillStyle = '#FFD700';
+                ctx.font = 'bold 42px Arial';
+                ctx.fillText(`#${stats.winPlace}`, 20, y + 60);
+
+                // Total players
+                ctx.fillStyle = '#888888';
+                ctx.font = '24px Arial';
+                ctx.fillText(`/${matchInfo.totalParticipants}`, 85, y + 60);
+
+                // Time and mode
+                ctx.fillStyle = '#888888';
+                ctx.font = '16px Arial';
+                ctx.fillText(timeSince, 250, y + 40);
+                ctx.fillStyle = '#FFFFFF';
+                ctx.font = '20px Arial';
+                ctx.fillText(matchInfo.matchType === 'competitive' ? 'NORMAL' : 'CASUAL MODE', 250, y + 75);
+
+                // Game type
+                ctx.fillText('SQUAD TPP', 500, y + 60);
+
+                // Stats
+                const stats_y = y + 60;
+                ctx.textAlign = 'center';
+                
+                // Kills
+                ctx.fillText(stats.kills.toString(), 700, stats_y);
+                
+                // Assists
+                ctx.fillText(stats.assists.toString(), 850, stats_y);
+                
+                // Damage
+                ctx.fillText(Math.round(stats.damageDealt).toString(), 1000, stats_y);
+                
+                // Time survived
+                ctx.fillText(formatTime(stats.timeSurvived), 1150, stats_y);
+            });
+
+            // Convert canvas to buffer
+            const buffer = canvas.toBuffer('image/png');
+            
+            // Send the image
+            const attachment = new AttachmentBuilder(buffer, { name: 'match-history.png' });
             await interaction.editReply({ files: [attachment] });
 
         } catch (error) {
@@ -92,3 +113,18 @@ module.exports = {
         }
     }
 };
+
+function formatTime(seconds) {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = Math.floor(seconds % 60);
+    return `${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
+}
+
+function getTimeSinceMatch(date) {
+    const hours = Math.floor((new Date() - date) / (1000 * 60 * 60));
+    if (hours < 24) {
+        return `${hours} HOURS AGO`;
+    }
+    const days = Math.floor(hours / 24);
+    return `${days} DAY${days > 1 ? 'S' : ''} AGO`;
+}
