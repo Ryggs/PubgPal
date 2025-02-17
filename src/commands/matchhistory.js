@@ -10,19 +10,23 @@ function getGameMode(type) {
         default: return 'CASUAL';
     }
 }
+function getMapBackgroundUrl(mapName) {
+    // Convert map name to the correct key format
+    const mapKey = mapName + '_Thumbnail';
+    return MAP_ASSETS[mapKey] || MAP_ASSETS[mapName] || '';
+}
 
 function generateMatchHistoryHTML(matches) {
     const matchRows = matches.map(match => {
         const stats = match.playerStats.attributes.stats;
         const matchInfo = match.matchData.data.attributes;
         const isWin = stats.winPlace === 1;
-        
-        // Get appropriate map background based on matchInfo.mapName
-        const mapBackground = getMapBackground(matchInfo.mapName);
+        const mapUrl = getMapBackgroundUrl(matchInfo.mapName);
 
         return `
-        <div class="match-row" style="background-image: url('${mapBackground}');">
+        <div class="match-row">
             ${isWin ? '<div class="win-indicator"></div>' : ''}
+            <div class="map-background" style="background-image: url('${mapUrl}');"></div>
             <div class="match-content">
                 <div class="placement">
                     <span class="placement-number">#${stats.winPlace}</span>
@@ -31,7 +35,7 @@ function generateMatchHistoryHTML(matches) {
 
                 <div class="match-info">
                     <div class="time-ago">${getTimeSinceMatch(new Date(matchInfo.createdAt))}</div>
-                    <div class="game-mode">${getGameMode(matchInfo.type)}</div>
+                    <div class="game-mode">${matchInfo.matchType === 'competitive' ? 'NORMAL' : 'CASUAL MODE'}</div>
                 </div>
 
                 <div class="squad-type">SQUAD TPP</div>
@@ -73,16 +77,26 @@ function generateMatchHistoryHTML(matches) {
             .match-row {
                 position: relative;
                 height: 100px;
-                background-size: cover;
-                background-position: center;
+                overflow: hidden;
                 border-bottom: 2px solid #1A1A1A;
             }
+            .map-background {
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background-size: cover;
+                background-position: center;
+                opacity: 0.3;
+            }
             .match-content {
+                position: relative;
                 display: flex;
                 align-items: center;
                 height: 100%;
                 padding: 0 20px;
-                background: linear-gradient(to right, rgba(0,0,0,0.8) 50%, rgba(0,0,0,0.6) 100%);
+                background: linear-gradient(90deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.6) 100%);
             }
             .win-indicator {
                 position: absolute;
@@ -91,6 +105,7 @@ function generateMatchHistoryHTML(matches) {
                 bottom: 0;
                 width: 4px;
                 background: #FFD700;
+                z-index: 2;
             }
             .placement {
                 width: 180px;
@@ -185,12 +200,10 @@ module.exports = {
 
     async execute(interaction) {
         await interaction.deferReply();
-
         let browser = null;
+
         try {
             const username = interaction.options.getString('username');
-            console.log('Getting player data for:', username);
-            
             const playerData = await getPUBGPlayer(username);
             const matchIds = playerData.relationships.matches.data.slice(0, 8);
 
@@ -207,50 +220,50 @@ module.exports = {
                 })
             );
 
-            console.log('Generating HTML...');
+            // Generate HTML
             const html = generateMatchHistoryHTML(matches);
 
-            // Launch browser
-            console.log('Launching browser...');
+            // Launch browser with specific viewport size
             browser = await puppeteer.launch({
                 args: ['--no-sandbox', '--disable-setuid-sandbox']
             });
-            
             const page = await browser.newPage();
-            console.log('Setting viewport...');
             await page.setViewport({ 
                 width: 1200, 
-                height: matches.length * 100 + 10 // Add some padding
+                height: matches.length * 100 + 10
             });
-            
-            console.log('Setting content...');
+
+            // Set content and wait for images to load
             await page.setContent(html);
-            
-            // Take screenshot
-            console.log('Taking screenshot...');
-            const buffer = await page.screenshot({
+            await page.evaluate(() => new Promise(resolve => {
+                const images = document.querySelectorAll('.map-background');
+                if (images.length === 0) resolve();
+                let loaded = 0;
+                images.forEach(img => {
+                    if (img.complete) loaded++;
+                    else img.addEventListener('load', () => {
+                        loaded++;
+                        if (loaded === images.length) resolve();
+                    });
+                });
+                if (loaded === images.length) resolve();
+            }));
+
+            const screenshot = await page.screenshot({
                 type: 'png',
-                fullPage: true,
-                encoding: 'binary'
+                fullPage: true
             });
 
-            console.log('Creating attachment...');
-            const attachment = new AttachmentBuilder(Buffer.from(buffer), { 
-                name: 'match-history.png',
-                description: `Match history for ${username}`
+            const attachment = new AttachmentBuilder(Buffer.from(screenshot), { 
+                name: 'match-history.png'
             });
-
-            console.log('Sending reply...');
             await interaction.editReply({ files: [attachment] });
 
         } catch (error) {
             console.error('Error in matchhistory command:', error);
             await interaction.editReply(`Error: ${error.message}`);
         } finally {
-            if (browser) {
-                console.log('Closing browser...');
-                await browser.close();
-            }
+            if (browser) await browser.close();
         }
     }
 };
