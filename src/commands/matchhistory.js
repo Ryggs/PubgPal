@@ -1,6 +1,6 @@
 const { SlashCommandBuilder, AttachmentBuilder } = require('discord.js');
 const { getPUBGPlayer, getMatchData } = require('../services/pubgApi');
-const { createCanvas } = require('canvas');
+const { createCanvas, GlobalFonts } = require('@napi-rs/canvas');
 
 function createMatchHistory(matches) {
     const rowHeight = 100;
@@ -29,53 +29,61 @@ function createMatchHistory(matches) {
             ctx.fillRect(0, y, 4, 95);
         }
 
-        // Placement number with simplified text
-        ctx.fillStyle = '#FFD700';
-        ctx.font = 'bold 42px "Arial"';
+        // Reset text alignment
         ctx.textAlign = 'left';
-        ctx.fillText(`#${stats.winPlace}`, 20, y + 60);
-        
-        ctx.fillStyle = '#888888';
-        ctx.font = '24px "Arial"';
-        ctx.fillText(`/${matchInfo.totalParticipants}`, 85, y + 60);
+        ctx.textBaseline = 'middle';
 
-        // Match info with simplified text
-        const timeAgo = getTimeSinceMatch(new Date(matchInfo.createdAt));
-        ctx.fillStyle = '#888888';
-        ctx.font = '16px "Arial"';
-        ctx.fillText(timeAgo, 250, y + 40);
+        // Placement
+        ctx.fillStyle = '#FFD700';
+        ctx.font = 'bold 42px sans-serif';
+        ctx.fillText(`#${stats.winPlace}`, 20, y + 47);
 
-        // Mode info
+        ctx.fillStyle = '#888888';
+        ctx.font = '24px sans-serif';
+        ctx.fillText(`/${matchInfo.totalParticipants}`, 90, y + 47);
+
+        // Time ago
+        const timeSince = getTimeSinceMatch(new Date(matchInfo.createdAt));
+        ctx.font = '16px sans-serif';
+        ctx.fillText(timeSince, 250, y + 35);
+
+        // Game mode
         ctx.fillStyle = '#FFFFFF';
-        ctx.font = '20px "Arial"';
-        ctx.fillText(matchInfo.matchType === 'competitive' ? 'NORMAL' : 'CASUAL', 250, y + 70);
+        ctx.font = '20px sans-serif';
+        ctx.fillText(matchInfo.matchType === 'competitive' ? 'NORMAL' : 'CASUAL MODE', 250, y + 65);
+        
+        // Game type
+        ctx.fillText('SQUAD TPP', 500, y + 47);
 
-        // Squad info
-        ctx.fillText('SQUAD', 500, y + 60);
-
-        // Stats
-        const positions = [
-            { x: 700, label: 'K', value: stats.kills },
-            { x: 850, label: 'A', value: stats.assists },
-            { x: 1000, label: 'D', value: Math.round(stats.damageDealt) },
-            { x: 1150, label: 'T', value: formatTime(stats.timeSurvived) }
-        ];
-
-        positions.forEach(pos => {
-            ctx.textAlign = 'center';
-            // Value
-            ctx.fillStyle = '#FFFFFF';
-            ctx.font = '24px "Arial"';
-            ctx.fillText(pos.value.toString(), pos.x, y + 45);
-            
-            // Label
-            ctx.fillStyle = '#888888';
-            ctx.font = '14px "Arial"';
-            ctx.fillText(pos.label, pos.x, y + 70);
-        });
+        // Stats section
+        ctx.textAlign = 'center';
+        
+        // Kills
+        drawStat(ctx, stats.kills.toString(), 'KILLS', 700, y + 47);
+        
+        // Assists
+        drawStat(ctx, stats.assists.toString(), 'ASSISTS', 850, y + 47);
+        
+        // Damage
+        drawStat(ctx, Math.round(stats.damageDealt).toString(), 'DAMAGE', 1000, y + 47);
+        
+        // Time
+        drawStat(ctx, formatTime(stats.timeSurvived), 'SURVIVAL', 1150, y + 47);
     });
 
     return canvas;
+}
+
+function drawStat(ctx, value, label, x, y) {
+    // Value
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = '24px sans-serif';
+    ctx.fillText(value, x, y - 10);
+    
+    // Label
+    ctx.fillStyle = '#888888';
+    ctx.font = '14px sans-serif';
+    ctx.fillText(label, x, y + 15);
 }
 
 function formatTime(seconds) {
@@ -87,10 +95,10 @@ function formatTime(seconds) {
 function getTimeSinceMatch(date) {
     const hours = Math.floor((new Date() - date) / (1000 * 60 * 60));
     if (hours < 24) {
-        return `${hours}h ago`;
+        return `${hours} HOURS AGO`;
     }
     const days = Math.floor(hours / 24);
-    return `${days}d ago`;
+    return `${days} DAY${days > 1 ? 'S' : ''} AGO`;
 }
 
 module.exports = {
@@ -125,7 +133,8 @@ module.exports = {
             );
 
             const canvas = createMatchHistory(matches);
-            const attachment = new AttachmentBuilder(canvas.toBuffer(), { name: 'match-history.png' });
+            const buffer = canvas.toBuffer('image/png');
+            const attachment = new AttachmentBuilder(buffer, { name: 'match-history.png' });
             await interaction.editReply({ files: [attachment] });
 
         } catch (error) {
