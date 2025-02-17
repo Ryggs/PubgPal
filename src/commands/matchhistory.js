@@ -1,6 +1,6 @@
 const { SlashCommandBuilder, AttachmentBuilder } = require('discord.js');
 const { getPUBGPlayer, getMatchData } = require('../services/pubgApi');
-const { createCanvas } = require('@napi-rs/canvas');
+const puppeteer = require('puppeteer');
 
 function getGameMode(type) {
     switch(type?.toLowerCase()) {
@@ -11,97 +11,74 @@ function getGameMode(type) {
     }
 }
 
-function createMatchHistory(matches) {
-    const rowHeight = 100;
-    const width = 1200;
-    const height = matches.length * rowHeight;
-    
-    const canvas = createCanvas(width, height);
-    const ctx = canvas.getContext('2d');
+function generateMatchHistoryHTML(matches) {
+    const matchRows = matches.map(match => {
+        const stats = match.playerStats.attributes.stats;
+        const matchInfo = match.matchData.data.attributes;
+        const isWin = stats.winPlace === 1;
 
-    // Background
-    ctx.fillStyle = '#1A1A1A';
-    ctx.fillRect(0, 0, width, height);
+        return `
+        <tr style="position: relative;">
+            ${isWin ? '<div style="position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: #FFD700;"></div>' : ''}
+            <td style="width: 150px; padding-left: 20px;">
+                <span style="color: #FFD700; font-size: 42px; font-weight: bold;">#${stats.winPlace}</span>
+                <span style="color: #888; font-size: 24px;">/64</span>
+            </td>
+            <td style="width: 200px;">
+                <div style="color: #888; font-size: 16px;">${getTimeSinceMatch(new Date(matchInfo.createdAt))}</div>
+                <div style="font-size: 20px;">${getGameMode(matchInfo.type)}</div>
+            </td>
+            <td style="width: 150px; font-size: 20px;">SQUAD TPP</td>
+            <td>
+                <div style="display: flex; gap: 50px; justify-content: center;">
+                    <div style="text-align: center;">
+                        <div style="font-size: 24px;">${stats.kills}</div>
+                        <div style="font-size: 14px; color: #888;">KILLS</div>
+                    </div>
+                    <div style="text-align: center;">
+                        <div style="font-size: 24px;">${stats.assists}</div>
+                        <div style="font-size: 14px; color: #888;">ASSISTS</div>
+                    </div>
+                    <div style="text-align: center;">
+                        <div style="font-size: 24px;">${Math.round(stats.damageDealt)}</div>
+                        <div style="font-size: 14px; color: #888;">DAMAGE</div>
+                    </div>
+                    <div style="text-align: center;">
+                        <div style="font-size: 24px;">${formatTime(stats.timeSurvived)}</div>
+                        <div style="font-size: 14px; color: #888;">SURVIVAL</div>
+                    </div>
+                </div>
+            </td>
+        </tr>`;
+    }).join('');
 
-    matches.forEach((match, index) => {
-        try {
-            const stats = match.playerStats.attributes.stats;
-            const matchInfo = match.matchData.data.attributes;
-            const y = index * rowHeight;
-
-            // Row background
-            ctx.fillStyle = '#2A2A2A';
-            ctx.fillRect(0, y, width, 95);
-
-            // Win indicator for 1st place
-            if (stats.winPlace === 1) {
-                ctx.fillStyle = '#FFD700';
-                ctx.fillRect(0, y, 4, 95);
+    return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <style>
+            body {
+                margin: 0;
+                padding: 0;
+                background: #1A1A1A;
+                font-family: Arial, sans-serif;
+                color: white;
             }
-
-            // Placement number
-            ctx.textAlign = 'left';
-            ctx.fillStyle = '#FFD700';
-            ctx.font = 'bold 42px sans-serif';
-            ctx.fillText(`#${stats.winPlace}`, 20, y + 55);
-
-            // Total players might be undefined, so we'll just show placement
-            ctx.fillStyle = '#888888';
-            ctx.font = '24px sans-serif';
-            ctx.fillText(`/64`, 85, y + 55); // Default to typical 64 players
-
-            // Time since match
-            const timeSince = getTimeSinceMatch(new Date(matchInfo.createdAt));
-            ctx.fillStyle = '#888888';
-            ctx.font = '16px sans-serif';
-            ctx.fillText(timeSince, 250, y + 35);
-
-            // Game mode
-            ctx.fillStyle = '#FFFFFF';
-            ctx.font = '20px sans-serif';
-            ctx.fillText(getGameMode(matchInfo.type), 250, y + 65);
-
-            // Stats section
-            ctx.textAlign = 'center';
-            
-            // Kills
-            ctx.fillStyle = '#FFFFFF';
-            ctx.font = '24px sans-serif';
-            ctx.fillText(stats.kills.toString(), 700, y + 45);
-            ctx.fillStyle = '#888888';
-            ctx.font = '14px sans-serif';
-            ctx.fillText('KILLS', 700, y + 65);
-
-            // Assists
-            ctx.fillStyle = '#FFFFFF';
-            ctx.font = '24px sans-serif';
-            ctx.fillText(stats.assists.toString(), 850, y + 45);
-            ctx.fillStyle = '#888888';
-            ctx.font = '14px sans-serif';
-            ctx.fillText('ASSISTS', 850, y + 65);
-
-            // Damage
-            ctx.fillStyle = '#FFFFFF';
-            ctx.font = '24px sans-serif';
-            ctx.fillText(Math.round(stats.damageDealt).toString(), 1000, y + 45);
-            ctx.fillStyle = '#888888';
-            ctx.font = '14px sans-serif';
-            ctx.fillText('DAMAGE', 1000, y + 65);
-
-            // Time survived
-            ctx.fillStyle = '#FFFFFF';
-            ctx.font = '24px sans-serif';
-            ctx.fillText(formatTime(stats.timeSurvived), 1150, y + 45);
-            ctx.fillStyle = '#888888';
-            ctx.font = '14px sans-serif';
-            ctx.fillText('SURVIVAL', 1150, y + 65);
-
-        } catch (error) {
-            console.error(`Error processing match ${index}:`, error);
-        }
-    });
-
-    return canvas;
+            table {
+                width: 1200px;
+                border-collapse: collapse;
+            }
+            tr {
+                height: 100px;
+                background: #2A2A2A;
+                border-bottom: 5px solid #1A1A1A;
+            }
+        </style>
+    </head>
+    <body>
+        <table>${matchRows}</table>
+    </body>
+    </html>`;
 }
 
 function formatTime(seconds) {
@@ -150,9 +127,26 @@ module.exports = {
                 })
             );
 
-            const canvas = createMatchHistory(matches);
-            const buffer = canvas.toBuffer('image/png');
-            const attachment = new AttachmentBuilder(buffer, { name: 'match-history.png' });
+            // Generate HTML
+            const html = generateMatchHistoryHTML(matches);
+
+            // Launch browser
+            const browser = await puppeteer.launch({
+                args: ['--no-sandbox', '--disable-setuid-sandbox']
+            });
+            const page = await browser.newPage();
+            await page.setViewport({ width: 1200, height: matches.length * 100 });
+            await page.setContent(html);
+            
+            // Take screenshot
+            const screenshot = await page.screenshot({
+                type: 'png',
+                fullPage: true
+            });
+            
+            await browser.close();
+
+            const attachment = new AttachmentBuilder(screenshot, { name: 'match-history.png' });
             await interaction.editReply({ files: [attachment] });
 
         } catch (error) {
