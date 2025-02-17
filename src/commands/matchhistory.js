@@ -1,28 +1,18 @@
 const { SlashCommandBuilder, AttachmentBuilder } = require('discord.js');
 const { getPUBGPlayer, getMatchData } = require('../services/pubgApi');
 const sharp = require('sharp');
-const { MAP_ASSETS, MAP_NAMES } = require('./match'); // Import MAP_ASSETS from match.js
-
-// Constants for map backgrounds (backup in case import fails)
-const FALLBACK_MAP_ASSETS = {
-    'Baltic_Main': 'https://raw.githubusercontent.com/pubg/api-assets/master/Assets/Maps/Baltic_Main.png',
-    'Desert_Main': 'https://raw.githubusercontent.com/pubg/api-assets/master/Assets/Maps/Desert_Main.png',
-    'Range_Main': 'https://raw.githubusercontent.com/pubg/api-assets/master/Assets/Maps/Range_Main.png',
-    'Savage_Main': 'https://raw.githubusercontent.com/pubg/api-assets/master/Assets/Maps/Savage_Main.png',
-    'Kiki_Main': 'https://raw.githubusercontent.com/pubg/api-assets/master/Assets/Maps/Kiki_Main.png',
-    'Tiger_Main': 'https://raw.githubusercontent.com/pubg/api-assets/master/Assets/Maps/Tiger_Main.png'
-};
+const { MAP_ASSETS } = require('./match');
 
 function generateMatchHistorySVG(matches) {
     const width = 1200;
     const rowHeight = 100;
     const height = matches.length * rowHeight;
 
-    return `
+    return `<?xml version="1.0" encoding="UTF-8"?>
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}">
         <defs>
             <style>
-                .match-row { font-family: Arial, sans-serif; }
+                .match-row { font-family: sans-serif; }
                 .placement { fill: #FFD700; font-weight: bold; }
                 .sub-text { fill: #888888; }
                 .stat-text { fill: #FFFFFF; }
@@ -36,21 +26,11 @@ function generateMatchHistorySVG(matches) {
             const y = index * rowHeight;
             const timeSince = getTimeSinceMatch(new Date(matchInfo.createdAt));
             const isWin = stats.winPlace === 1;
-            const mapName = matchInfo.mapName;
-
-            // Get map background URL, using thumbnail version if available
-            const mapImageKey = mapName + '_Thumbnail';
-            const mapImage = (MAP_ASSETS && MAP_ASSETS[mapImageKey]) || 
-                           FALLBACK_MAP_ASSETS[mapName] || 
-                           ''; // Fallback to empty string if no image found
 
             return `
             <g class="match-row" transform="translate(0,${y})">
-                <!-- Background color (fallback if image fails) -->
+                <!-- Background -->
                 <rect width="${width}" height="${rowHeight}" fill="#1A1A1A"/>
-                
-                <!-- Map Background -->
-                ${mapImage ? `<image href="${mapImage}" width="${width}" height="${rowHeight}" opacity="0.3"/>` : ''}
                 
                 <!-- Dark Overlay -->
                 <rect width="${width}" height="${rowHeight}" fill="rgba(0,0,0,0.7)"/>
@@ -59,8 +39,10 @@ function generateMatchHistorySVG(matches) {
                 ${isWin ? `<rect width="4" height="${rowHeight}" fill="#FFD700"/>` : ''}
                 
                 <!-- Placement -->
-                <text class="placement" x="20" y="65" font-size="42">#${stats.winPlace}</text>
-                <text class="sub-text" x="85" y="65" font-size="24">/${matchInfo.totalParticipants}</text>
+                <g transform="translate(20,65)">
+                    <text class="placement" font-size="42">#${stats.winPlace}</text>
+                    <text class="sub-text" x="65" font-size="24">/${matchInfo.totalParticipants}</text>
+                </g>
                 
                 <!-- Time and Mode -->
                 <g transform="translate(250,40)">
@@ -73,23 +55,23 @@ function generateMatchHistorySVG(matches) {
                 <!-- Game Type -->
                 <text class="mode-text" x="500" y="65" font-size="20">SQUAD TPP</text>
                 
-                <!-- Stats -->
-                <g transform="translate(700,40)">
-                    <!-- Kills -->
-                    <text class="stat-text" x="0" y="25" font-size="24" text-anchor="middle">${stats.kills}</text>
+                <!-- Stats Grid -->
+                <g transform="translate(700,50)">
+                    <!-- Stats Labels -->
+                    <g transform="translate(0,-20)">
+                        <text class="sub-text" x="0" font-size="14" text-anchor="middle">KILLS</text>
+                        <text class="sub-text" x="150" font-size="14" text-anchor="middle">ASSISTS</text>
+                        <text class="sub-text" x="300" font-size="14" text-anchor="middle">DAMAGE</text>
+                        <text class="sub-text" x="450" font-size="14" text-anchor="middle">SURVIVAL</text>
+                    </g>
                     
-                    <!-- Assists -->
-                    <text class="stat-text" x="150" y="25" font-size="24" text-anchor="middle">${stats.assists}</text>
-                    
-                    <!-- Damage -->
-                    <text class="stat-text" x="300" y="25" font-size="24" text-anchor="middle">
-                        ${Math.round(stats.damageDealt)}
-                    </text>
-                    
-                    <!-- Time Survived -->
-                    <text class="stat-text" x="450" y="25" font-size="24" text-anchor="middle">
-                        ${formatTime(stats.timeSurvived)}
-                    </text>
+                    <!-- Stats Values -->
+                    <g>
+                        <text class="stat-text" x="0" font-size="24" text-anchor="middle">${stats.kills}</text>
+                        <text class="stat-text" x="150" font-size="24" text-anchor="middle">${stats.assists}</text>
+                        <text class="stat-text" x="300" font-size="24" text-anchor="middle">${Math.round(stats.damageDealt)}</text>
+                        <text class="stat-text" x="450" font-size="24" text-anchor="middle">${formatTime(stats.timeSurvived)}</text>
+                    </g>
                 </g>
             </g>`;
         }).join('')}
@@ -142,9 +124,11 @@ module.exports = {
                 })
             );
 
+            // Generate SVG
             const svgContent = generateMatchHistorySVG(matches);
 
-            const pngBuffer = await sharp(Buffer.from(svgContent))
+            // Convert to PNG with UTF-8 encoding
+            const pngBuffer = await sharp(Buffer.from(svgContent, 'utf-8'))
                 .png()
                 .toBuffer();
 
