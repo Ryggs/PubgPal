@@ -96,6 +96,7 @@ function getTimeSinceMatch(date) {
     return `${days} DAY${days > 1 ? 'S' : ''} AGO`;
 }
 
+
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('matchhistory')
@@ -109,8 +110,11 @@ module.exports = {
     async execute(interaction) {
         await interaction.deferReply();
 
+        let browser = null;
         try {
             const username = interaction.options.getString('username');
+            console.log('Getting player data for:', username);
+            
             const playerData = await getPUBGPlayer(username);
             const matchIds = playerData.relationships.matches.data.slice(0, 8);
 
@@ -127,31 +131,50 @@ module.exports = {
                 })
             );
 
-            // Generate HTML
+            console.log('Generating HTML...');
             const html = generateMatchHistoryHTML(matches);
 
             // Launch browser
-            const browser = await puppeteer.launch({
+            console.log('Launching browser...');
+            browser = await puppeteer.launch({
                 args: ['--no-sandbox', '--disable-setuid-sandbox']
             });
+            
             const page = await browser.newPage();
-            await page.setViewport({ width: 1200, height: matches.length * 100 });
+            console.log('Setting viewport...');
+            await page.setViewport({ 
+                width: 1200, 
+                height: matches.length * 100 + 10 // Add some padding
+            });
+            
+            console.log('Setting content...');
             await page.setContent(html);
             
             // Take screenshot
-            const screenshot = await page.screenshot({
+            console.log('Taking screenshot...');
+            const buffer = await page.screenshot({
                 type: 'png',
-                fullPage: true
+                fullPage: true,
+                encoding: 'binary'
             });
-            
-            await browser.close();
 
-            const attachment = new AttachmentBuilder(screenshot, { name: 'match-history.png' });
+            console.log('Creating attachment...');
+            const attachment = new AttachmentBuilder(Buffer.from(buffer), { 
+                name: 'match-history.png',
+                description: `Match history for ${username}`
+            });
+
+            console.log('Sending reply...');
             await interaction.editReply({ files: [attachment] });
 
         } catch (error) {
             console.error('Error in matchhistory command:', error);
             await interaction.editReply(`Error: ${error.message}`);
+        } finally {
+            if (browser) {
+                console.log('Closing browser...');
+                await browser.close();
+            }
         }
     }
 };
