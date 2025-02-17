@@ -37,155 +37,86 @@ function getMapBackgroundUrl(mapName) {
         // Fall back to full map if thumbnail not found
         return MAP_ASSETS[mapName] || '';
 }
-
 function generateMatchHistoryHTML(matches) {
-    const matchRows = matches.map(match => {
-        const stats = match.playerStats.attributes.stats;
-        const matchInfo = match.matchData.data.attributes;
-        const isWin = stats.winPlace === 1;
-        const mapUrl = getMapBackgroundUrl(matchInfo.mapName);
-
-        return `
-        <div class="match-row">
-            ${isWin ? '<div class="win-indicator"></div>' : ''}
-            <div class="map-background" style="background-image: url('${mapUrl}');"></div>
-            <div class="match-content">
-                <div class="placement">
-                    <span class="placement-number">#${stats.winPlace}</span>
-                    <span class="total-players">/64</span>
-                </div>
-
-                <div class="match-info">
-                    <div class="time-ago">${getTimeSinceMatch(new Date(matchInfo.createdAt))}</div>
-                    <div class="game-mode">${matchInfo.matchType === 'competitive' ? 'NORMAL' : 'CASUAL MODE'}</div>
-                </div>
-
-                <div class="squad-type">SQUAD TPP</div>
-
-                <div class="stats">
-                    <div class="stat">
-                        <div class="stat-value">${stats.kills}</div>
-                        <div class="stat-label">KILLS</div>
-                    </div>
-                    <div class="stat">
-                        <div class="stat-value">${stats.assists}</div>
-                        <div class="stat-label">ASSISTS</div>
-                    </div>
-                    <div class="stat">
-                        <div class="stat-value">${Math.round(stats.damageDealt)}</div>
-                        <div class="stat-label">DAMAGE</div>
-                    </div>
-                    <div class="stat">
-                        <div class="stat-value">${formatTime(stats.timeSurvived)}</div>
-                        <div class="stat-label">SURVIVAL</div>
-                    </div>
-                </div>
-            </div>
-        </div>`;
-    }).join('');
-
     return `
     <!DOCTYPE html>
     <html>
     <head>
         <style>
-            body {
-                margin: 0;
-                padding: 0;
-                background: #1A1A1A;
-                font-family: "Segoe UI", Arial, sans-serif;
+            body { margin: 0; padding: 0; background: #1A1A1A; font-family: Arial; }
+            .row { 
+                display: flex; 
+                height: 100px; 
+                background: #2A2A2A;
                 color: white;
-            }
-            .match-row {
-                position: relative;
-                height: 100px;
-                overflow: hidden;
-                border-bottom: 2px solid #1A1A1A;
-            }
-            .map-background {
-                position: absolute;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                background-size: cover;
-                background-position: center;
-                opacity: 0.3;
-            }
-            .match-content {
-                position: relative;
-                display: flex;
                 align-items: center;
-                height: 100%;
                 padding: 0 20px;
-                background: linear-gradient(90deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.6) 100%);
+                border-bottom: 2px solid #1A1A1A;
+                position: relative;
             }
-            .win-indicator {
-                position: absolute;
-                left: 0;
-                top: 0;
-                bottom: 0;
-                width: 4px;
-                background: #FFD700;
-                z-index: 2;
-            }
-            .placement {
-                width: 180px;
-                display: flex;
-                align-items: baseline;
-            }
-            .placement-number {
-                color: #FFD700;
-                font-size: 42px;
+            .win { border-left: 4px solid #FFD700; }
+            .placement { 
+                color: #FFD700; 
+                font-size: 42px; 
                 font-weight: bold;
-                margin-right: 5px;
+                width: 180px;
             }
-            .total-players {
-                color: #888;
-                font-size: 24px;
-            }
-            .match-info {
+            .info {
                 width: 220px;
             }
-            .time-ago {
-                color: #888;
+            .time { 
+                color: #888; 
                 font-size: 16px;
                 margin-bottom: 4px;
             }
-            .game-mode {
-                font-size: 20px;
-                color: white;
-            }
-            .squad-type {
-                width: 180px;
-                font-size: 20px;
-                color: white;
-            }
+            .mode { font-size: 20px; }
+            .squad { width: 180px; font-size: 20px; }
             .stats {
-                display: flex;
-                gap: 80px;
-                flex: 1;
-                justify-content: center;
-            }
-            .stat {
+                display: grid;
+                grid-template-columns: repeat(4, 100px);
+                gap: 20px;
                 text-align: center;
-                min-width: 80px;
             }
-            .stat-value {
-                font-size: 24px;
-                color: white;
-                margin-bottom: 4px;
-            }
-            .stat-label {
+            .stat-value { font-size: 24px; }
+            .stat-label { 
+                color: #888; 
                 font-size: 14px;
-                color: #888;
+                margin-top: 4px;
             }
         </style>
     </head>
     <body>
-        <div class="match-history">
-            ${matchRows}
-        </div>
+        ${matches.map(match => {
+            const stats = match.playerStats.attributes.stats;
+            const matchInfo = match.matchData.data.attributes;
+            return `
+            <div class="row ${stats.winPlace === 1 ? 'win' : ''}">
+                <div class="placement">#${stats.winPlace}/64</div>
+                <div class="info">
+                    <div class="time">${getTimeSinceMatch(new Date(matchInfo.createdAt))}</div>
+                    <div class="mode">${matchInfo.matchType === 'competitive' ? 'NORMAL' : 'CASUAL MODE'}</div>
+                </div>
+                <div class="squad">SQUAD TPP</div>
+                <div class="stats">
+                    <div>
+                        <div class="stat-value">${stats.kills}</div>
+                        <div class="stat-label">KILLS</div>
+                    </div>
+                    <div>
+                        <div class="stat-value">${stats.assists}</div>
+                        <div class="stat-label">ASSISTS</div>
+                    </div>
+                    <div>
+                        <div class="stat-value">${Math.round(stats.damageDealt)}</div>
+                        <div class="stat-label">DAMAGE</div>
+                    </div>
+                    <div>
+                        <div class="stat-value">${formatTime(stats.timeSurvived)}</div>
+                        <div class="stat-label">SURVIVAL</div>
+                    </div>
+                </div>
+            </div>`;
+        }).join('')}
     </body>
     </html>`;
 }
@@ -225,13 +156,30 @@ module.exports = {
         let browser = null;
 
         try {
+            console.log('Starting matchhistory command...');
             const username = interaction.options.getString('username');
-            const playerData = await getPUBGPlayer(username);
+            
+            // Add timeout to player data fetch
+            const playerData = await Promise.race([
+                getPUBGPlayer(username),
+                new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('Timeout getting player data')), 10000)
+                )
+            ]);
+
+            console.log('Got player data');
             const matchIds = playerData.relationships.matches.data.slice(0, 8);
 
+            // Add timeout to match data fetch
             const matches = await Promise.all(
                 matchIds.map(async match => {
-                    const matchData = await getMatchData(match.id);
+                    const matchData = await Promise.race([
+                        getMatchData(match.id),
+                        new Promise((_, reject) => 
+                            setTimeout(() => reject(new Error('Timeout getting match data')), 10000)
+                        )
+                    ]);
+                    
                     return {
                         matchData,
                         playerStats: matchData.included.find(
@@ -242,50 +190,64 @@ module.exports = {
                 })
             );
 
+            console.log('Got all match data');
+
             // Generate HTML
             const html = generateMatchHistoryHTML(matches);
+            console.log('Generated HTML');
 
-            // Launch browser with specific viewport size
+            // Launch browser with timeout
             browser = await puppeteer.launch({
-                args: ['--no-sandbox', '--disable-setuid-sandbox']
+                args: ['--no-sandbox', '--disable-setuid-sandbox'],
+                timeout: 10000
             });
+
             const page = await browser.newPage();
+            console.log('Browser page created');
+
+            // Set shorter timeout for page operations
+            page.setDefaultTimeout(5000);
+
             await page.setViewport({ 
                 width: 1200, 
                 height: matches.length * 100 + 10
             });
 
-            // Set content and wait for images to load
+            console.log('Setting page content...');
             await page.setContent(html);
-            await page.evaluate(() => new Promise(resolve => {
-                const images = document.querySelectorAll('.map-background');
-                if (images.length === 0) resolve();
-                let loaded = 0;
-                images.forEach(img => {
-                    if (img.complete) loaded++;
-                    else img.addEventListener('load', () => {
-                        loaded++;
-                        if (loaded === images.length) resolve();
-                    });
-                });
-                if (loaded === images.length) resolve();
-            }));
 
-            const screenshot = await page.screenshot({
-                type: 'png',
-                fullPage: true
-            });
+            // Take screenshot with timeout
+            console.log('Taking screenshot...');
+            const screenshot = await Promise.race([
+                page.screenshot({
+                    type: 'png',
+                    fullPage: true
+                }),
+                new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('Screenshot timeout')), 5000)
+                )
+            ]);
 
+            console.log('Creating attachment...');
             const attachment = new AttachmentBuilder(Buffer.from(screenshot), { 
                 name: 'match-history.png'
             });
+
+            console.log('Sending reply...');
             await interaction.editReply({ files: [attachment] });
 
         } catch (error) {
             console.error('Error in matchhistory command:', error);
-            await interaction.editReply(`Error: ${error.message}`);
+            await interaction.editReply(`Error generating match history: ${error.message}`);
         } finally {
-            if (browser) await browser.close();
+            if (browser) {
+                try {
+                    console.log('Closing browser...');
+                    await browser.close();
+                } catch (error) {
+                    console.error('Error closing browser:', error);
+                }
+            }
         }
     }
 };
