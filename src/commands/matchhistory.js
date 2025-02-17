@@ -10,7 +10,7 @@ function createMatchHistory(matches) {
     const canvas = createCanvas(width, height);
     const ctx = canvas.getContext('2d');
 
-    // Set background
+    // Background
     ctx.fillStyle = '#1A1A1A';
     ctx.fillRect(0, 0, width, height);
 
@@ -23,56 +23,56 @@ function createMatchHistory(matches) {
         ctx.fillStyle = '#2A2A2A';
         ctx.fillRect(0, y, width, 95);
 
-        // Win indicator (yellow bar for #1 placement)
+        // Win indicator
         if (stats.winPlace === 1) {
             ctx.fillStyle = '#FFD700';
             ctx.fillRect(0, y, 4, 95);
         }
 
-        // Placement number
+        // Placement number with simplified text
         ctx.fillStyle = '#FFD700';
-        ctx.font = 'bold 42px Arial';
+        ctx.font = 'bold 42px "Arial"';
+        ctx.textAlign = 'left';
         ctx.fillText(`#${stats.winPlace}`, 20, y + 60);
-
-        // Total players
+        
         ctx.fillStyle = '#888888';
-        ctx.font = '24px Arial';
+        ctx.font = '24px "Arial"';
         ctx.fillText(`/${matchInfo.totalParticipants}`, 85, y + 60);
 
-        // Time since match
-        const timeSince = getTimeSinceMatch(new Date(matchInfo.createdAt));
+        // Match info with simplified text
+        const timeAgo = getTimeSinceMatch(new Date(matchInfo.createdAt));
         ctx.fillStyle = '#888888';
-        ctx.font = '16px Arial';
-        ctx.fillText(timeSince, 250, y + 40);
+        ctx.font = '16px "Arial"';
+        ctx.fillText(timeAgo, 250, y + 40);
 
-        // Game mode
+        // Mode info
         ctx.fillStyle = '#FFFFFF';
-        ctx.font = '20px Arial';
-        const gameMode = matchInfo.matchType === 'competitive' ? 'NORMAL' : 'CASUAL MODE';
-        ctx.fillText(gameMode, 250, y + 70);
+        ctx.font = '20px "Arial"';
+        ctx.fillText(matchInfo.matchType === 'competitive' ? 'NORMAL' : 'CASUAL', 250, y + 70);
 
-        // Squad type
-        ctx.fillText('SQUAD TPP', 500, y + 60);
+        // Squad info
+        ctx.fillText('SQUAD', 500, y + 60);
 
         // Stats
-        ctx.textAlign = 'center';
-        const statsY = y + 60;
-        
-        // Draw stats values
-        ctx.fillStyle = '#FFFFFF';
-        ctx.font = '24px Arial';
-        ctx.fillText(stats.kills.toString(), 700, statsY);
-        ctx.fillText(stats.assists.toString(), 850, statsY);
-        ctx.fillText(Math.round(stats.damageDealt).toString(), 1000, statsY);
-        ctx.fillText(formatTime(stats.timeSurvived), 1150, statsY);
+        const positions = [
+            { x: 700, label: 'K', value: stats.kills },
+            { x: 850, label: 'A', value: stats.assists },
+            { x: 1000, label: 'D', value: Math.round(stats.damageDealt) },
+            { x: 1150, label: 'T', value: formatTime(stats.timeSurvived) }
+        ];
 
-        // Draw stats labels
-        ctx.fillStyle = '#888888';
-        ctx.font = '14px Arial';
-        ctx.fillText('KILLS', 700, statsY + 20);
-        ctx.fillText('ASSISTS', 850, statsY + 20);
-        ctx.fillText('DAMAGE', 1000, statsY + 20);
-        ctx.fillText('SURVIVAL', 1150, statsY + 20);
+        positions.forEach(pos => {
+            ctx.textAlign = 'center';
+            // Value
+            ctx.fillStyle = '#FFFFFF';
+            ctx.font = '24px "Arial"';
+            ctx.fillText(pos.value.toString(), pos.x, y + 45);
+            
+            // Label
+            ctx.fillStyle = '#888888';
+            ctx.font = '14px "Arial"';
+            ctx.fillText(pos.label, pos.x, y + 70);
+        });
     });
 
     return canvas;
@@ -87,10 +87,10 @@ function formatTime(seconds) {
 function getTimeSinceMatch(date) {
     const hours = Math.floor((new Date() - date) / (1000 * 60 * 60));
     if (hours < 24) {
-        return `${hours} HOURS AGO`;
+        return `${hours}h ago`;
     }
     const days = Math.floor(hours / 24);
-    return `${days} DAY${days > 1 ? 'S' : ''} AGO`;
+    return `${days}d ago`;
 }
 
 module.exports = {
