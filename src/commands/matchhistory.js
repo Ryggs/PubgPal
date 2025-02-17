@@ -16,40 +16,46 @@ function generateMatchHistoryHTML(matches) {
         const stats = match.playerStats.attributes.stats;
         const matchInfo = match.matchData.data.attributes;
         const isWin = stats.winPlace === 1;
+        
+        // Get appropriate map background based on matchInfo.mapName
+        const mapBackground = getMapBackground(matchInfo.mapName);
 
         return `
-        <tr style="position: relative;">
-            ${isWin ? '<div style="position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: #FFD700;"></div>' : ''}
-            <td style="width: 150px; padding-left: 20px;">
-                <span style="color: #FFD700; font-size: 42px; font-weight: bold;">#${stats.winPlace}</span>
-                <span style="color: #888; font-size: 24px;">/64</span>
-            </td>
-            <td style="width: 200px;">
-                <div style="color: #888; font-size: 16px;">${getTimeSinceMatch(new Date(matchInfo.createdAt))}</div>
-                <div style="font-size: 20px;">${getGameMode(matchInfo.type)}</div>
-            </td>
-            <td style="width: 150px; font-size: 20px;">SQUAD TPP</td>
-            <td>
-                <div style="display: flex; gap: 50px; justify-content: center;">
-                    <div style="text-align: center;">
-                        <div style="font-size: 24px;">${stats.kills}</div>
-                        <div style="font-size: 14px; color: #888;">KILLS</div>
+        <div class="match-row" style="background-image: url('${mapBackground}');">
+            ${isWin ? '<div class="win-indicator"></div>' : ''}
+            <div class="match-content">
+                <div class="placement">
+                    <span class="placement-number">#${stats.winPlace}</span>
+                    <span class="total-players">/64</span>
+                </div>
+
+                <div class="match-info">
+                    <div class="time-ago">${getTimeSinceMatch(new Date(matchInfo.createdAt))}</div>
+                    <div class="game-mode">${getGameMode(matchInfo.type)}</div>
+                </div>
+
+                <div class="squad-type">SQUAD TPP</div>
+
+                <div class="stats">
+                    <div class="stat">
+                        <div class="stat-value">${stats.kills}</div>
+                        <div class="stat-label">KILLS</div>
                     </div>
-                    <div style="text-align: center;">
-                        <div style="font-size: 24px;">${stats.assists}</div>
-                        <div style="font-size: 14px; color: #888;">ASSISTS</div>
+                    <div class="stat">
+                        <div class="stat-value">${stats.assists}</div>
+                        <div class="stat-label">ASSISTS</div>
                     </div>
-                    <div style="text-align: center;">
-                        <div style="font-size: 24px;">${Math.round(stats.damageDealt)}</div>
-                        <div style="font-size: 14px; color: #888;">DAMAGE</div>
+                    <div class="stat">
+                        <div class="stat-value">${Math.round(stats.damageDealt)}</div>
+                        <div class="stat-label">DAMAGE</div>
                     </div>
-                    <div style="text-align: center;">
-                        <div style="font-size: 24px;">${formatTime(stats.timeSurvived)}</div>
-                        <div style="font-size: 14px; color: #888;">SURVIVAL</div>
+                    <div class="stat">
+                        <div class="stat-value">${formatTime(stats.timeSurvived)}</div>
+                        <div class="stat-label">SURVIVAL</div>
                     </div>
                 </div>
-            </td>
-        </tr>`;
+            </div>
+        </div>`;
     }).join('');
 
     return `
@@ -61,24 +67,94 @@ function generateMatchHistoryHTML(matches) {
                 margin: 0;
                 padding: 0;
                 background: #1A1A1A;
-                font-family: Arial, sans-serif;
+                font-family: "Segoe UI", Arial, sans-serif;
                 color: white;
             }
-            table {
-                width: 1200px;
-                border-collapse: collapse;
-            }
-            tr {
+            .match-row {
+                position: relative;
                 height: 100px;
-                background: #2A2A2A;
-                border-bottom: 5px solid #1A1A1A;
+                background-size: cover;
+                background-position: center;
+                border-bottom: 2px solid #1A1A1A;
+            }
+            .match-content {
+                display: flex;
+                align-items: center;
+                height: 100%;
+                padding: 0 20px;
+                background: linear-gradient(to right, rgba(0,0,0,0.8) 50%, rgba(0,0,0,0.6) 100%);
+            }
+            .win-indicator {
+                position: absolute;
+                left: 0;
+                top: 0;
+                bottom: 0;
+                width: 4px;
+                background: #FFD700;
+            }
+            .placement {
+                width: 180px;
+                display: flex;
+                align-items: baseline;
+            }
+            .placement-number {
+                color: #FFD700;
+                font-size: 42px;
+                font-weight: bold;
+                margin-right: 5px;
+            }
+            .total-players {
+                color: #888;
+                font-size: 24px;
+            }
+            .match-info {
+                width: 220px;
+            }
+            .time-ago {
+                color: #888;
+                font-size: 16px;
+                margin-bottom: 4px;
+            }
+            .game-mode {
+                font-size: 20px;
+                color: white;
+            }
+            .squad-type {
+                width: 180px;
+                font-size: 20px;
+                color: white;
+            }
+            .stats {
+                display: flex;
+                gap: 80px;
+                flex: 1;
+                justify-content: center;
+            }
+            .stat {
+                text-align: center;
+                min-width: 80px;
+            }
+            .stat-value {
+                font-size: 24px;
+                color: white;
+                margin-bottom: 4px;
+            }
+            .stat-label {
+                font-size: 14px;
+                color: #888;
             }
         </style>
     </head>
     <body>
-        <table>${matchRows}</table>
+        <div class="match-history">
+            ${matchRows}
+        </div>
     </body>
     </html>`;
+}
+
+function getMapBackground(mapName) {
+    return '/api/placeolder/1200/100';
 }
 
 function formatTime(seconds) {
