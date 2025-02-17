@@ -1,65 +1,16 @@
 const { SlashCommandBuilder, AttachmentBuilder } = require('discord.js');
 const { getPUBGPlayer, getMatchData } = require('../services/pubgApi');
 const sharp = require('sharp');
-const match = require('./match');
+const { MAP_ASSETS, MAP_NAMES } = require('./match'); // Import MAP_ASSETS from match.js
 
-const MAP_BACKGROUNDS = {
-    'Baltic_Main': '/assets/maps/erangel.jpg',
-    'Desert_Main': '/assets/maps/miramar.jpg',
-    'Range_Main': '/assets/maps/sanhok.jpg',
-    'Savage_Main': '/assets/maps/vikendi.jpg',
-    'Kiki_Main': '/assets/maps/deston.jpg',
-    'Tiger_Main': '/assets/maps/taego.jpg'
-};
-
-module.exports = {
-    data: new SlashCommandBuilder()
-        .setName('matchhistory')
-        .setDescription('Get PUBG match history')
-        .addStringOption(option =>
-            option.setName('username')
-                .setDescription('PUBG username to look up')
-                .setRequired(true)
-        ),
-
-    async execute(interaction) {
-        await interaction.deferReply();
-
-        try {
-            const username = interaction.options.getString('username');
-            const playerData = await getPUBGPlayer(username);
-            const matchIds = playerData.relationships.matches.data.slice(0, 8); // Get last 8 matches
-
-            //Get match data for all matches
-            const matches = await Promise.all(
-                matchIds.map(async match => {
-                    const matchData = await getMatchData(match.id);
-                    return{
-                        matchData,
-                        playerStats: matchData.included.find(
-                            item => item.type === 'participant' &&
-                            item.attributes.stats.name.toLowerCase() === username.toLowerCase()
-                        )
-                    }
-                })
-            );
-
-            // Generate SVG for match history
-            const svgContent = generateMatchHistorySVG(matches);
-
-            // Convert SVG to PNG
-            const pngBuffer = await sharp(Buffer.from(svgContent))
-                .png()
-                .toBuffer();
-
-            const attachment = new AttachmentBuilder(pngBuffer, { name: 'match-history.png' });
-            await interaction.editReply({ files: [attachment] });
-
-        } catch (error) {
-            console.error('Error in matchhistory command:', error);
-            await interaction.editReply(`Error: ${error.message}`);
-        }
-    }
+// Constants for map backgrounds (backup in case import fails)
+const FALLBACK_MAP_ASSETS = {
+    'Baltic_Main': 'https://raw.githubusercontent.com/pubg/api-assets/master/Assets/Maps/Baltic_Main.png',
+    'Desert_Main': 'https://raw.githubusercontent.com/pubg/api-assets/master/Assets/Maps/Desert_Main.png',
+    'Range_Main': 'https://raw.githubusercontent.com/pubg/api-assets/master/Assets/Maps/Range_Main.png',
+    'Savage_Main': 'https://raw.githubusercontent.com/pubg/api-assets/master/Assets/Maps/Savage_Main.png',
+    'Kiki_Main': 'https://raw.githubusercontent.com/pubg/api-assets/master/Assets/Maps/Kiki_Main.png',
+    'Tiger_Main': 'https://raw.githubusercontent.com/pubg/api-assets/master/Assets/Maps/Tiger_Main.png'
 };
 
 function generateMatchHistorySVG(matches) {
@@ -87,13 +38,19 @@ function generateMatchHistorySVG(matches) {
             const isWin = stats.winPlace === 1;
             const mapName = matchInfo.mapName;
 
-            // Get map background URL from MAP_ASSETS
-            const mapImage = MAP_ASSETS[mapName + '_Thumbnail'] || '';
+            // Get map background URL, using thumbnail version if available
+            const mapImageKey = mapName + '_Thumbnail';
+            const mapImage = (MAP_ASSETS && MAP_ASSETS[mapImageKey]) || 
+                           FALLBACK_MAP_ASSETS[mapName] || 
+                           ''; // Fallback to empty string if no image found
 
             return `
             <g class="match-row" transform="translate(0,${y})">
+                <!-- Background color (fallback if image fails) -->
+                <rect width="${width}" height="${rowHeight}" fill="#1A1A1A"/>
+                
                 <!-- Map Background -->
-                <image href="${mapImage}" width="${width}" height="${rowHeight}" opacity="0.3"/>
+                ${mapImage ? `<image href="${mapImage}" width="${width}" height="${rowHeight}" opacity="0.3"/>` : ''}
                 
                 <!-- Dark Overlay -->
                 <rect width="${width}" height="${rowHeight}" fill="rgba(0,0,0,0.7)"/>
@@ -145,7 +102,6 @@ function formatTime(seconds) {
     return `${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
 }
 
-// Helper function to format time ago (e.g., "1 DAY AGO", "3 DAYS AGO")
 function getTimeSinceMatch(date) {
     const hours = Math.floor((new Date() - date) / (1000 * 60 * 60));
     if (hours < 24) {
@@ -154,3 +110,50 @@ function getTimeSinceMatch(date) {
     const days = Math.floor(hours / 24);
     return `${days} DAY${days > 1 ? 'S' : ''} AGO`;
 }
+
+module.exports = {
+    data: new SlashCommandBuilder()
+        .setName('matchhistory')
+        .setDescription('Get PUBG match history')
+        .addStringOption(option =>
+            option.setName('username')
+                .setDescription('PUBG username to look up')
+                .setRequired(true)
+        ),
+
+    async execute(interaction) {
+        await interaction.deferReply();
+
+        try {
+            const username = interaction.options.getString('username');
+            const playerData = await getPUBGPlayer(username);
+            const matchIds = playerData.relationships.matches.data.slice(0, 8);
+
+            const matches = await Promise.all(
+                matchIds.map(async match => {
+                    const matchData = await getMatchData(match.id);
+                    return {
+                        matchData,
+                        playerStats: matchData.included.find(
+                            item => item.type === 'participant' && 
+                            item.attributes.stats.name.toLowerCase() === username.toLowerCase()
+                        )
+                    };
+                })
+            );
+
+            const svgContent = generateMatchHistorySVG(matches);
+
+            const pngBuffer = await sharp(Buffer.from(svgContent))
+                .png()
+                .toBuffer();
+
+            const attachment = new AttachmentBuilder(pngBuffer, { name: 'match-history.png' });
+            await interaction.editReply({ files: [attachment] });
+
+        } catch (error) {
+            console.error('Error in matchhistory command:', error);
+            await interaction.editReply(`Error: ${error.message}`);
+        }
+    }
+};
