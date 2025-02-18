@@ -1,51 +1,8 @@
 const { SlashCommandBuilder, AttachmentBuilder } = require('discord.js');
 const { getPUBGPlayer, getMatchData } = require('../services/pubgApi');
-const sharp = require('sharp'); // For converting SVG to PNG
-const path = require('path');
+const puppeteer = require('puppeteer');
 
-// Style definitions and rules
-const PLAYER_STYLES = {
-    popArt: {
-        gradient: ['#FF6B6B', '#FFE66D'],
-        pattern: 'dotPattern',
-        condition: stats => stats.level >= 300
-    },
-    neonRays: {
-        gradient: ['#9C27B0', '#673AB7'],
-        pattern: 'rayPattern',
-        condition: stats => stats.damage > 400
-    },
-    dragonScale: {
-        gradient: ['#C0392B', '#E74C3C'],
-        pattern: 'scalePattern',
-        condition: stats => stats.kills >= 5
-    },
-    quantumField: {
-        gradient: ['#16A085', '#1ABC9C'],
-        pattern: 'particlePattern',
-        condition: stats => stats.assists > 0
-    },
-    // Add more styles...
-};
-const MAP_ASSETS = {
-    // Full map images
-    'Baltic_Main': 'https://raw.githubusercontent.com/pubg/api-assets/master/Assets/Maps/Baltic_Main.png',
-    'Desert_Main': 'https://raw.githubusercontent.com/pubg/api-assets/master/Assets/Maps/Desert_Main.png',
-    'Range_Main': 'https://raw.githubusercontent.com/pubg/api-assets/master/Assets/Maps/Range_Main.png',
-    'Savage_Main': 'https://raw.githubusercontent.com/pubg/api-assets/master/Assets/Maps/Savage_Main.png',
-    'Kiki_Main': 'https://raw.githubusercontent.com/pubg/api-assets/master/Assets/Maps/Kiki_Main.png',
-    'Tiger_Main': 'https://raw.githubusercontent.com/pubg/api-assets/master/Assets/Maps/Tiger_Main.png',
-
-    // Map thumbnails (for match history)
-    'Baltic_Main_Thumbnail': 'https://raw.githubusercontent.com/pubg/api-assets/master/Assets/Maps/Thumbnails/Baltic_Main_Thumbnail.png',
-    'Desert_Main_Thumbnail': 'https://raw.githubusercontent.com/pubg/api-assets/master/Assets/Maps/Thumbnails/Desert_Main_Thumbnail.png',
-    'Range_Main_Thumbnail': 'https://raw.githubusercontent.com/pubg/api-assets/master/Assets/Maps/Thumbnails/Range_Main_Thumbnail.png',
-    'Savage_Main_Thumbnail': 'https://raw.githubusercontent.com/pubg/api-assets/master/Assets/Maps/Thumbnails/Savage_Main_Thumbnail.png',
-    'Kiki_Main_Thumbnail': 'https://raw.githubusercontent.com/pubg/api-assets/master/Assets/Maps/Thumbnails/Kiki_Main_Thumbnail.png',
-    'Tiger_Main_Thumbnail': 'https://raw.githubusercontent.com/pubg/api-assets/master/Assets/Maps/Thumbnails/Tiger_Main_Thumbnail.png'
-};
-
-// Map name translations
+// Constants
 const MAP_NAMES = {
     'Baltic_Main': 'ERANGEL',
     'Desert_Main': 'MIRAMAR',
@@ -54,44 +11,278 @@ const MAP_NAMES = {
     'Kiki_Main': 'DESTON',
     'Tiger_Main': 'TAEGO'
 };
-// Weapon icons from API assets
-const WEAPON_ICONS = {
-// Assault Rifles
-'Item_Weapon_M416_C': 'https://raw.githubusercontent.com/pubg/api-assets/master/Assets/Items/Weapons/Main/Item_Weapon_M416_C.png',
-'Item_Weapon_AK47_C': 'https://raw.githubusercontent.com/pubg/api-assets/master/Assets/Items/Weapons/Main/Item_Weapon_AK47_C.png',
-'Item_Weapon_G36C_C': 'https://raw.githubusercontent.com/pubg/api-assets/master/Assets/Items/Weapons/Main/Item_Weapon_G36C_C.png',
-'Item_Weapon_SCAR-L_C': 'https://raw.githubusercontent.com/pubg/api-assets/master/Assets/Items/Weapons/Main/Item_Weapon_SCAR-L_C.png',
-'Item_Weapon_BerylM762_C': 'https://raw.githubusercontent.com/pubg/api-assets/master/Assets/Items/Weapons/Main/Item_Weapon_BerylM762_C.png',
 
-// SMGs
-'Item_Weapon_Vector_C': 'https://raw.githubusercontent.com/pubg/api-assets/master/Assets/Items/Weapons/Main/Item_Weapon_Vector_C.png',
-'Item_Weapon_UMP_C': 'https://raw.githubusercontent.com/pubg/api-assets/master/Assets/Items/Weapons/Main/Item_Weapon_UMP_C.png',
-'Item_Weapon_MP5K_C': 'https://raw.githubusercontent.com/pubg/api-assets/master/Assets/Items/Weapons/Main/Item_Weapon_MP5K_C.png',
+function generateMatchReportHTML(matchData, playerStats, teamMembers) {
+    return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <style>
+            body { 
+                margin: 0; 
+                padding: 20px; 
+                background: #1A1A1A; 
+                font-family: Arial, sans-serif;
+                color: white;
+            }
+            
+            .header {
+                font-size: 32px;
+                font-weight: bold;
+                margin-bottom: 20px;
+                text-transform: uppercase;
+                letter-spacing: 1px;
+            }
+            
+            .tabs {
+                display: flex;
+                gap: 10px;
+                margin-bottom: 20px;
+            }
+            
+            .tab {
+                padding: 8px 20px;
+                background: #2A2A2A;
+                cursor: pointer;
+                text-transform: uppercase;
+                font-size: 14px;
+                letter-spacing: 1px;
+            }
+            
+            .tab.active {
+                background: #3A3A3A;
+            }
+            
+            .match-info {
+                display: grid;
+                grid-template-columns: repeat(4, 1fr);
+                gap: 20px;
+                margin-bottom: 30px;
+                background: #2A2A2A;
+                padding: 20px;
+                border-radius: 4px;
+            }
+            
+            .info-item {
+                display: flex;
+                flex-direction: column;
+            }
+            
+            .info-label {
+                color: #888;
+                font-size: 14px;
+                text-transform: uppercase;
+                margin-bottom: 5px;
+                letter-spacing: 0.5px;
+            }
+            
+            .info-value {
+                font-size: 24px;
+                color: white;
+                font-weight: bold;
+            }
+            
+            .info-value.bp {
+                color: #FFD700;
+            }
+            
+            .player-rows {
+                display: flex;
+                flex-direction: column;
+                gap: 2px;
+            }
+            
+            .player-row {
+                display: flex;
+                align-items: center;
+                background: #2A2A2A;
+                height: 80px;
+                padding: 0 20px;
+                position: relative;
+                overflow: hidden;
+            }
+            
+            .player-row.winner::before {
+                content: '';
+                position: absolute;
+                left: 0;
+                top: 0;
+                bottom: 0;
+                width: 4px;
+                background: #FFD700;
+            }
+            
+            .player-info {
+                display: flex;
+                align-items: center;
+                width: 200px;
+            }
+            
+            .level-badge {
+                width: 40px;
+                height: 40px;
+                background: linear-gradient(135deg, #FFD700, #FFA500);
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                margin-right: 10px;
+                font-weight: bold;
+                font-size: 12px;
+                color: #1A1A1A;
+            }
+            
+            .player-name {
+                font-size: 16px;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+            
+            .stats {
+                display: flex;
+                flex: 1;
+                justify-content: space-around;
+            }
+            
+            .stat {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                width: 100px;
+            }
+            
+            .stat-label {
+                color: #888;
+                font-size: 12px;
+                text-transform: uppercase;
+                margin-bottom: 5px;
+                letter-spacing: 0.5px;
+            }
+            
+            .stat-value {
+                font-size: 20px;
+                font-weight: bold;
+            }
+            
+            .buttons {
+                display: flex;
+                justify-content: space-between;
+                margin-top: 20px;
+            }
+            
+            .btn {
+                padding: 10px 30px;
+                background: #2A2A2A;
+                border: none;
+                color: white;
+                text-transform: uppercase;
+                cursor: pointer;
+                font-size: 14px;
+                letter-spacing: 1px;
+                transition: background-color 0.2s;
+            }
+            
+            .btn:hover {
+                background: #3A3A3A;
+            }
+            
+            .btn.cancel {
+                background: #B8860B;
+            }
+            
+            .btn.cancel:hover {
+                background: #DAA520;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="header">MATCH REPORT</div>
+        
+        <div class="tabs">
+            <div class="tab active">SUMMARY</div>
+            <div class="tab">WEAPONS</div>
+        </div>
+        
+        <div class="match-info">
+            <div class="info-item">
+                <div class="info-label">MAP</div>
+                <div class="info-value">${MAP_NAMES[matchData.data.attributes.mapName] || matchData.data.attributes.mapName}</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">GAME MODE</div>
+                <div class="info-value">SQUAD</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">PLACEMENT</div>
+                <div class="info-value">#${playerStats.attributes.stats.winPlace} / ${matchData.data.attributes.totalParticipants}</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">SURVIVAL BP EARNED</div>
+                <div class="info-value bp">+150</div>
+            </div>
+        </div>
+        
+        <div class="player-rows">
+            ${teamMembers.map(member => {
+                const stats = member.attributes.stats;
+                const isWinner = stats.winPlace === 1;
+                return `
+                <div class="player-row ${isWinner ? 'winner' : ''}">
+                    <div class="player-info">
+                        <div class="level-badge">
+                            LV.${stats.level || 1}
+                        </div>
+                        <div class="player-name">${stats.name}</div>
+                    </div>
+                    <div class="stats">
+                        <div class="stat">
+                            <div class="stat-label">KILLS</div>
+                            <div class="stat-value">${stats.kills}</div>
+                        </div>
+                        <div class="stat">
+                            <div class="stat-label">ASSISTS</div>
+                            <div class="stat-value">${stats.assists}</div>
+                        </div>
+                        <div class="stat">
+                            <div class="stat-label">DAMAGE</div>
+                            <div class="stat-value">${Math.round(stats.damageDealt)}</div>
+                        </div>
+                        <div class="stat">
+                            <div class="stat-label">TIME ALIVE</div>
+                            <div class="stat-value">${formatTime(stats.timeSurvived)}</div>
+                        </div>
+                        <div class="stat">
+                            <div class="stat-label">TOP WEAPON</div>
+                            <div class="stat-value">${stats.killStreaks || '-'}</div>
+                        </div>
+                        <div class="stat">
+                            <div class="stat-label">MEDALS</div>
+                            <div class="stat-value">${stats.DBNOs || '-'}</div>
+                        </div>
+                    </div>
+                </div>
+                `;
+            }).join('')}
+        </div>
+        
+        <div class="buttons">
+            <button class="btn">BACK</button>
+            <div>
+                <button class="btn">READY</button>
+                <button class="btn cancel">CANCEL</button>
+            </div>
+        </div>
+    </body>
+    </html>
+    `;
+}
 
-// Sniper Rifles
-'Item_Weapon_AWM_C': 'https://raw.githubusercontent.com/pubg/api-assets/master/Assets/Items/Weapons/Main/Item_Weapon_AWM_C.png',
-'Item_Weapon_M24_C': 'https://raw.githubusercontent.com/pubg/api-assets/master/Assets/Items/Weapons/Main/Item_Weapon_M24_C.png',
-'Item_Weapon_Kar98k_C': 'https://raw.githubusercontent.com/pubg/api-assets/master/Assets/Items/Weapons/Main/Item_Weapon_Kar98k_C.png',
-
-// DMRs
-'Item_Weapon_Mini14_C': 'https://raw.githubusercontent.com/pubg/api-assets/master/Assets/Items/Weapons/Main/Item_Weapon_Mini14_C.png',
-'Item_Weapon_SKS_C': 'https://raw.githubusercontent.com/pubg/api-assets/master/Assets/Items/Weapons/Main/Item_Weapon_SKS_C.png',
-'Item_Weapon_SLR_C': 'https://raw.githubusercontent.com/pubg/api-assets/master/Assets/Items/Weapons/Main/Item_Weapon_SLR_C.png',
-
-// Shotguns
-'Item_Weapon_S12K_C': 'https://raw.githubusercontent.com/pubg/api-assets/master/Assets/Items/Weapons/Main/Item_Weapon_S12K_C.png',
-'Item_Weapon_S1897_C': 'https://raw.githubusercontent.com/pubg/api-assets/master/Assets/Items/Weapons/Main/Item_Weapon_S1897_C.png',
-
-// Pistols
-'Item_Weapon_P18C_C': 'https://raw.githubusercontent.com/pubg/api-assets/master/Assets/Items/Weapons/Main/Item_Weapon_P18C_C.png',
-
-};
-
-module.exports = {
-    MAP_ASSETS,
-    MAP_NAMES,
-    WEAPON_ICONS
-};
+function formatTime(seconds) {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = Math.floor(seconds % 60);
+    return `${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
+}
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -105,6 +296,7 @@ module.exports = {
 
     async execute(interaction) {
         await interaction.deferReply();
+        let browser = null;
 
         try {
             const username = interaction.options.getString('username');
@@ -130,91 +322,44 @@ module.exports = {
                 item.attributes.stats.teamId === teamId
             );
 
-            // Generate SVG
-            const svg = generateMatchReportSVG(matchData, teamMembers, playerStats);
+            // Generate HTML
+            const html = generateMatchReportHTML(matchData, playerStats, teamMembers);
 
-            // Convert SVG to PNG
-            const pngBuffer = await sharp(Buffer.from(svg))
-                .png()
-                .toBuffer();
+            // Launch browser
+            browser = await puppeteer.launch({
+                args: ['--no-sandbox', '--disable-setuid-sandbox'],
+                timeout: 10000
+            });
 
-            // Send as Discord attachment
-            const attachment = new AttachmentBuilder(pngBuffer, { name: 'match-report.png' });
+            const page = await browser.newPage();
+            await page.setViewport({ 
+                width: 1200,
+                height: 800
+            });
+
+            // Set content and wait for rendering
+            await page.setContent(html);
+            await page.waitForSelector('.player-rows');
+
+            // Take screenshot
+            const screenshot = await page.screenshot({
+                type: 'png',
+                fullPage: true
+            });
+
+            const attachment = new AttachmentBuilder(Buffer.from(screenshot), { 
+                name: 'match-report.png'
+            });
+
             await interaction.editReply({ files: [attachment] });
 
         } catch (error) {
             console.error('Error in match command:', error);
             await interaction.editReply(`Error: ${error.message}`);
+        } finally {
+            if (browser) {
+                await browser.close();
+            }
         }
     },
 };
-
-function getPlayerStyle(stats) {
-    // Find the first matching style based on conditions
-    const style = Object.entries(PLAYER_STYLES).find(([_, style]) => style.condition(stats));
-    return style ? style[0] : 'default';
-}
-
-function generateMatchReportSVG(matchData, teamMembers, playerStats) {
-    // Get match info
-    const matchInfo = matchData.data.attributes;
-    const mapName = MAP_NAMES[matchInfo.mapName] || matchInfo.mapName;
-    
-    // Start SVG template
-    let svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 600">
-        ${generateSVGDefs()}
-        
-        <!-- Background -->
-        <rect width="1200" height="600" fill="#1A1A1A"/>
-        
-        <!-- Header -->
-        ${generateHeaderSection(matchInfo, playerStats)}
-        
-        <!-- Players -->
-        ${generatePlayerRows(teamMembers)}
-    </svg>`;
-
-    return svg;
-}
-
-function generateSVGDefs() {
-    // Return all gradient and pattern definitions
-    return `<defs>
-        <!-- Include all the gradient and pattern definitions from our previous SVG -->
-        ...
-    </defs>`;
-}
-
-function generateHeaderSection(matchInfo, playerStats) {
-    return `<g transform="translate(0,0)">
-        <rect width="1200" height="80" fill="#232323"/>
-        <text x="40" y="35" fill="#9a9a9a" font-family="Arial" font-size="16">PLACEMENT</text>
-        <text x="40" y="65" fill="#FFD700" font-family="Arial" font-size="24" font-weight="bold" filter="url(#glow)">
-            #${playerStats.attributes.stats.winPlace}/${matchInfo.totalParticipants}
-        </text>
-        ...
-    </g>`;
-}
-
-function generatePlayerRows(teamMembers) {
-    let playerRows = '';
-    teamMembers.forEach((member, index) => {
-        const stats = member.attributes.stats;
-        const style = getPlayerStyle(stats);
-        
-        playerRows += `
-        <g transform="translate(40,${160 + index * 80})">
-            <rect width="500" height="70" fill="url(#${style}Gradient)"/>
-            <rect width="500" height="70" fill="url(#${PLAYER_STYLES[style].pattern})"/>
-            ...
-        </g>`;
-    });
-    return playerRows;
-}
-
-// Function to format time (MM:SS)
-function formatTime(seconds) {
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = Math.floor(seconds % 60);
-    return `${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
-}
