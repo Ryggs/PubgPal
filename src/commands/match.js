@@ -2,7 +2,6 @@ const { SlashCommandBuilder, AttachmentBuilder } = require('discord.js');
 const { getPUBGPlayer, getMatchData } = require('../services/pubgApi');
 const puppeteer = require('puppeteer');
 
-// Constants
 const MAP_NAMES = {
     'Baltic_Main': 'ERANGEL',
     'Desert_Main': 'MIRAMAR',
@@ -20,47 +19,56 @@ function generateMatchReportHTML(matchData, playerStats, teamMembers) {
         <style>
             body { 
                 margin: 0; 
-                padding: 20px; 
-                background: #1A1A1A; 
+                padding: 0; 
+                background: #0A0A0A; 
                 font-family: Arial, sans-serif;
                 color: white;
+                width: 1200px;
+                height: 800px;
+                position: relative;
+                overflow: hidden;
             }
             
             .header {
-                font-size: 32px;
+                position: absolute;
+                top: 20px;
+                left: 30px;
+                font-size: 38px;
                 font-weight: bold;
-                margin-bottom: 20px;
+                font-family: 'Arial Black', sans-serif;
                 text-transform: uppercase;
                 letter-spacing: 1px;
             }
             
             .tabs {
+                position: absolute;
+                top: 80px;
+                left: 30px;
                 display: flex;
-                gap: 10px;
-                margin-bottom: 20px;
+                gap: 2px;
             }
             
             .tab {
                 padding: 8px 20px;
-                background: #2A2A2A;
-                cursor: pointer;
+                background: #1A1A1A;
                 text-transform: uppercase;
                 font-size: 14px;
                 letter-spacing: 1px;
             }
             
             .tab.active {
-                background: #3A3A3A;
+                background: #2A2A2A;
+                border-bottom: 2px solid #FFD700;
             }
             
             .match-info {
+                position: absolute;
+                top: 130px;
+                left: 30px;
+                right: 30px;
                 display: grid;
-                grid-template-columns: repeat(4, 1fr);
+                grid-template-columns: repeat(5, 1fr);
                 gap: 20px;
-                margin-bottom: 30px;
-                background: #2A2A2A;
-                padding: 20px;
-                border-radius: 4px;
             }
             
             .info-item {
@@ -69,17 +77,18 @@ function generateMatchReportHTML(matchData, playerStats, teamMembers) {
             }
             
             .info-label {
-                color: #888;
-                font-size: 14px;
+                color: #666;
+                font-size: 12px;
                 text-transform: uppercase;
-                margin-bottom: 5px;
-                letter-spacing: 0.5px;
+                letter-spacing: 1px;
+                margin-bottom: 4px;
             }
             
             .info-value {
-                font-size: 24px;
+                font-size: 20px;
                 color: white;
                 font-weight: bold;
+                letter-spacing: 1px;
             }
             
             .info-value.bp {
@@ -87,111 +96,129 @@ function generateMatchReportHTML(matchData, playerStats, teamMembers) {
             }
             
             .player-rows {
+                position: absolute;
+                top: 200px;
+                left: 30px;
+                right: 400px;
                 display: flex;
                 flex-direction: column;
                 gap: 2px;
             }
             
             .player-row {
+                height: 70px;
                 display: flex;
                 align-items: center;
-                background: #2A2A2A;
-                height: 80px;
-                padding: 0 20px;
+                padding: 0 10px;
                 position: relative;
                 overflow: hidden;
             }
-            
-            .player-row.winner::before {
-                content: '';
-                position: absolute;
-                left: 0;
-                top: 0;
-                bottom: 0;
-                width: 4px;
-                background: #FFD700;
-            }
+
+            .player-row:nth-child(1) { background: linear-gradient(90deg, rgba(255, 107, 107, 0.2), rgba(255, 230, 109, 0.1)); }
+            .player-row:nth-child(2) { background: linear-gradient(90deg, rgba(156, 39, 176, 0.2), rgba(103, 58, 183, 0.1)); }
+            .player-row:nth-child(3) { background: linear-gradient(90deg, rgba(192, 57, 43, 0.2), rgba(231, 76, 60, 0.1)); }
+            .player-row:nth-child(4) { background: linear-gradient(90deg, rgba(22, 160, 133, 0.2), rgba(26, 188, 156, 0.1)); }
             
             .player-info {
                 display: flex;
                 align-items: center;
                 width: 200px;
+                gap: 10px;
             }
             
-            .level-badge {
-                width: 40px;
-                height: 40px;
-                background: linear-gradient(135deg, #FFD700, #FFA500);
-                border-radius: 50%;
+            .player-avatar {
+                width: 50px;
+                height: 50px;
+                background: #333;
+                border-radius: 5px;
                 display: flex;
                 align-items: center;
                 justify-content: center;
-                margin-right: 10px;
-                font-weight: bold;
                 font-size: 12px;
-                color: #1A1A1A;
+                position: relative;
+            }
+
+            .player-level {
+                position: absolute;
+                bottom: -5px;
+                right: -5px;
+                background: #FFD700;
+                color: black;
+                padding: 2px 4px;
+                border-radius: 2px;
+                font-size: 10px;
+                font-weight: bold;
             }
             
             .player-name {
                 font-size: 16px;
-                white-space: nowrap;
-                overflow: hidden;
-                text-overflow: ellipsis;
+                font-weight: bold;
+                color: #FFF;
             }
             
             .stats {
                 display: flex;
                 flex: 1;
-                justify-content: space-around;
+                justify-content: space-between;
+                padding: 0 20px;
             }
             
             .stat {
                 display: flex;
                 flex-direction: column;
                 align-items: center;
-                width: 100px;
+                min-width: 80px;
             }
             
             .stat-label {
                 color: #888;
-                font-size: 12px;
+                font-size: 11px;
                 text-transform: uppercase;
-                margin-bottom: 5px;
                 letter-spacing: 0.5px;
+                margin-bottom: 4px;
             }
             
             .stat-value {
-                font-size: 20px;
+                font-size: 18px;
                 font-weight: bold;
+                color: #FFF;
             }
-            
-            .buttons {
+
+            .player-model {
+                position: absolute;
+                top: 200px;
+                right: 30px;
+                width: 350px;
+                height: 500px;
+                background: url('/api/placeholder/350/500');
+                background-size: cover;
+            }
+
+            .bottom-buttons {
+                position: absolute;
+                bottom: 30px;
+                left: 30px;
+                right: 30px;
                 display: flex;
                 justify-content: space-between;
-                margin-top: 20px;
             }
-            
+
             .btn {
                 padding: 10px 30px;
-                background: #2A2A2A;
-                border: none;
-                color: white;
                 text-transform: uppercase;
-                cursor: pointer;
                 font-size: 14px;
                 letter-spacing: 1px;
-                transition: background-color 0.2s;
+                background: #333;
+                border: none;
+                color: white;
+                cursor: pointer;
             }
-            
-            .btn:hover {
-                background: #3A3A3A;
+
+            .btn.ready {
+                background: #1A1A1A;
             }
-            
+
             .btn.cancel {
-                background: #B8860B;
-            }
-            
-            .btn.cancel:hover {
                 background: #DAA520;
             }
         </style>
@@ -218,6 +245,10 @@ function generateMatchReportHTML(matchData, playerStats, teamMembers) {
                 <div class="info-value">#${playerStats.attributes.stats.winPlace} / ${matchData.data.attributes.totalParticipants}</div>
             </div>
             <div class="info-item">
+                <div class="info-label">PHASES SURVIVED</div>
+                <div class="info-value">${playerStats.attributes.stats.swimDistance > 0 ? Math.floor(playerStats.attributes.stats.swimDistance / 100) : 0}</div>
+            </div>
+            <div class="info-item">
                 <div class="info-label">SURVIVAL BP EARNED</div>
                 <div class="info-value bp">+150</div>
             </div>
@@ -226,12 +257,12 @@ function generateMatchReportHTML(matchData, playerStats, teamMembers) {
         <div class="player-rows">
             ${teamMembers.map(member => {
                 const stats = member.attributes.stats;
-                const isWinner = stats.winPlace === 1;
                 return `
-                <div class="player-row ${isWinner ? 'winner' : ''}">
+                <div class="player-row">
                     <div class="player-info">
-                        <div class="level-badge">
-                            LV.${stats.level || 1}
+                        <div class="player-avatar">
+                            PUBG
+                            <div class="player-level">LV.${stats.level || 1}</div>
                         </div>
                         <div class="player-name">${stats.name}</div>
                     </div>
@@ -254,7 +285,7 @@ function generateMatchReportHTML(matchData, playerStats, teamMembers) {
                         </div>
                         <div class="stat">
                             <div class="stat-label">TOP WEAPON</div>
-                            <div class="stat-value">${stats.killStreaks || '-'}</div>
+                            <div class="stat-value">${getTopWeapon(stats)}</div>
                         </div>
                         <div class="stat">
                             <div class="stat-label">MEDALS</div>
@@ -265,11 +296,13 @@ function generateMatchReportHTML(matchData, playerStats, teamMembers) {
                 `;
             }).join('')}
         </div>
-        
-        <div class="buttons">
+
+        <div class="player-model"></div>
+
+        <div class="bottom-buttons">
             <button class="btn">BACK</button>
             <div>
-                <button class="btn">READY</button>
+                <button class="btn ready">READY</button>
                 <button class="btn cancel">CANCEL</button>
             </div>
         </div>
@@ -282,6 +315,12 @@ function formatTime(seconds) {
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = Math.floor(seconds % 60);
     return `${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
+}
+
+function getTopWeapon(stats) {
+    // You would implement logic here to determine top weapon from stats
+    // For now returning placeholder
+    return stats.headshotKills > 2 ? 'M416' : 'AKM';
 }
 
 module.exports = {
