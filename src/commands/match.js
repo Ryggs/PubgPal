@@ -149,7 +149,7 @@ module.exports = {
             const teamMembers = matchData.included.filter(
                 item => item.type === 'participant' && 
                 item.attributes.stats.teamId === teamId &&
-                item.attributes.teamId !== 0 //Ensure valid team ID
+                item.attributes.stats.teamId !== 0 //Ensure valid team ID
             ).sort((a, b) =>{
                 // Sort by kills (descending) and then by damage (descending)
                 const killsDiff = b.attributes.stats.kills - a.attributes.stats.kills;
