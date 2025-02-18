@@ -2,6 +2,7 @@ const { SlashCommandBuilder, AttachmentBuilder } = require('discord.js');
 const { getPUBGPlayer, getMatchData } = require('../services/pubgApi');
 const puppeteer = require('puppeteer');
 
+// Map name translations
 const MAP_NAMES = {
     'Baltic_Main': 'ERANGEL',
     'Desert_Main': 'MIRAMAR',
@@ -11,209 +12,13 @@ const MAP_NAMES = {
     'Tiger_Main': 'TAEGO'
 };
 
-function generateMatchReportHTML(matchData, playerStats, teamMembers) {
+function generateMatchReportHTML(matchData, playerStats, teamMembers, totalParticipants) {
     return `
     <!DOCTYPE html>
     <html>
     <head>
         <style>
-            body { 
-                margin: 0; 
-                padding: 30px; 
-                background: #0A0A0A; 
-                font-family: 'Tahoma', sans-serif;
-                color: white;
-                width: 1200px;
-                height: 800px;
-            }
-            
-            .title {
-                font-size: 42px;
-                font-weight: bold;
-                text-transform: uppercase;
-                margin-bottom: 20px;
-                font-family: 'Impact', sans-serif;
-                letter-spacing: 1px;
-            }
-            
-            .tabs {
-                display: flex;
-                gap: 2px;
-                margin-bottom: 30px;
-            }
-            
-            .tab {
-                padding: 8px 24px;
-                font-size: 14px;
-                text-transform: uppercase;
-                background: rgba(255, 255, 255, 0.1);
-            }
-            
-            .tab.active {
-                background: rgba(255, 255, 255, 0.2);
-            }
-            
-            .match-summary {
-                display: grid;
-                grid-template-columns: repeat(5, 1fr);
-                gap: 40px;
-                margin-bottom: 30px;
-            }
-            
-            .summary-item {
-                display: flex;
-                flex-direction: column;
-            }
-            
-            .summary-label {
-                font-size: 12px;
-                color: #888;
-                text-transform: uppercase;
-                margin-bottom: 5px;
-                letter-spacing: 1px;
-            }
-            
-            .summary-value {
-                font-size: 24px;
-                font-weight: bold;
-                letter-spacing: 1px;
-            }
-            
-            .summary-value.bp {
-                color: #FFD700;
-            }
-            
-            .player-rows {
-                display: flex;
-                flex-direction: column;
-                gap: 2px;
-            }
-            
-            .player-row {
-                height: 80px;
-                display: flex;
-                align-items: center;
-                background: linear-gradient(90deg, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.8) 100%);
-                position: relative;
-                overflow: hidden;
-            }
-
-            .player-banner {
-                position: absolute;
-                top: 0;
-                left: 0;
-                right: 0;
-                bottom: 0;
-                z-index: 1;
-            }
-
-            .player-row:nth-child(1) .player-banner {
-                background: linear-gradient(90deg, rgba(255,107,107,0.2), rgba(255,230,109,0.1));
-            }
-
-            .player-row:nth-child(2) .player-banner {
-                background: linear-gradient(90deg, rgba(0,150,255,0.2), rgba(0,75,255,0.1));
-            }
-
-            .player-row:nth-child(3) .player-banner {
-                background: linear-gradient(90deg, rgba(255,128,0,0.2), rgba(180,90,0,0.1));
-            }
-
-            .player-row:nth-child(4) .player-banner {
-                background: linear-gradient(90deg, rgba(255,128,128,0.2), rgba(180,90,90,0.1));
-            }
-            
-            .player-content {
-                display: flex;
-                align-items: center;
-                width: 100%;
-                z-index: 2;
-                padding: 0 20px;
-            }
-            
-            .player-info {
-                display: flex;
-                align-items: center;
-                width: 300px;
-                gap: 15px;
-            }
-            
-            .player-avatar {
-                width: 60px;
-                height: 60px;
-                position: relative;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-            }
-
-            .pubg-icon {
-                width: 40px;
-                height: 40px;
-                background: #555;
-                border-radius: 5px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-size: 10px;
-                color: #fff;
-            }
-            
-            .player-level {
-                position: absolute;
-                bottom: 0;
-                left: 0;
-                background: #FFD700;
-                color: black;
-                padding: 2px 6px;
-                font-size: 12px;
-                font-weight: bold;
-            }
-            
-            .player-name {
-                font-size: 18px;
-                font-weight: bold;
-            }
-            
-            .player-stats {
-                display: flex;
-                flex: 1;
-                justify-content: space-between;
-                padding-right: 20px;
-            }
-            
-            .stat {
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                width: 100px;
-            }
-            
-            .stat-label {
-                font-size: 12px;
-                color: #888;
-                text-transform: uppercase;
-                margin-bottom: 4px;
-            }
-            
-            .stat-value {
-                font-size: 20px;
-                font-weight: bold;
-            }
-
-            .medals {
-                width: 120px;
-                display: flex;
-                justify-content: flex-end;
-                gap: 5px;
-            }
-
-            .medal {
-                width: 30px;
-                height: 30px;
-                background: rgba(255,255,255,0.1);
-                border-radius: 50%;
-            }
+            /* ... (keep existing styles) ... */
         </style>
     </head>
     <body>
@@ -224,26 +29,26 @@ function generateMatchReportHTML(matchData, playerStats, teamMembers) {
             <div class="tab">WEAPONS</div>
         </div>
         
-        <div class="match-summary">
-            <div class="summary-item">
-                <div class="summary-label">MAP</div>
-                <div class="summary-value">${MAP_NAMES[matchData.data.attributes.mapName] || matchData.data.attributes.mapName}</div>
+        <div class="match-info">
+            <div class="info-item">
+                <div class="info-label">MAP</div>
+                <div class="info-value">${MAP_NAMES[matchData.data.attributes.mapName] || matchData.data.attributes.mapName}</div>
             </div>
-            <div class="summary-item">
-                <div class="summary-label">GAME MODE</div>
-                <div class="summary-value">SQUAD</div>
+            <div class="info-item">
+                <div class="info-label">GAME MODE</div>
+                <div class="info-value">${matchData.data.attributes.gameMode.toUpperCase()}</div>
             </div>
-            <div class="summary-item">
-                <div class="summary-label">PLACEMENT</div>
-                <div class="summary-value">#${playerStats.attributes.stats.winPlace} / ${matchData.data.attributes.totalParticipants}</div>
+            <div class="info-item">
+                <div class="info-label">PLACEMENT</div>
+                <div class="info-value">#${playerStats.attributes.stats.winPlace} / ${totalParticipants}</div>
             </div>
-            <div class="summary-item">
-                <div class="summary-label">PHASES SURVIVED</div>
-                <div class="summary-value">0</div>
+            <div class="info-item">
+                <div class="info-label">PHASES SURVIVED</div>
+                <div class="info-value">${calculatePhasesSurvived(playerStats.attributes.stats)}</div>
             </div>
-            <div class="summary-item">
-                <div class="summary-label">SURVIVAL BP EARNED</div>
-                <div class="summary-value bp">+150</div>
+            <div class="info-item">
+                <div class="info-label">SURVIVAL BP EARNED</div>
+                <div class="info-value bp">+150</div>
             </div>
         </div>
         
@@ -252,7 +57,6 @@ function generateMatchReportHTML(matchData, playerStats, teamMembers) {
                 const stats = member.attributes.stats;
                 return `
                 <div class="player-row">
-                    <div class="player-banner"></div>
                     <div class="player-content">
                         <div class="player-info">
                             <div class="player-avatar">
@@ -283,9 +87,6 @@ function generateMatchReportHTML(matchData, playerStats, teamMembers) {
                                 <div class="stat-value">${getTopWeapon(stats)}</div>
                             </div>
                         </div>
-                        <div class="medals">
-                            ${getMedalIcons(stats)}
-                        </div>
                     </div>
                 </div>
                 `;
@@ -302,12 +103,9 @@ function formatTime(seconds) {
     return `${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
 }
 
-function getTopWeapon(stats) {
-    // In a real implementation, you would analyze the weapon usage stats
-    // For now, returning placeholder values
-    const weapons = ['M416', 'AKM', 'AWM', 'M24'];
-    return weapons[Math.floor(Math.random() * weapons.length)];
-}
+const { getTopWeapon, analyzeWeaponPerformance, WEAPON_DISPLAY_NAMES } = require('./weaponAnalysis');
+
+// The getTopWeapon function is now imported from weaponAnalysis.js
 
 function getMedalIcons(stats) {
     // Calculate number of medals based on performance
@@ -350,11 +148,26 @@ module.exports = {
             const teamId = playerStats.attributes.stats.teamId;
             const teamMembers = matchData.included.filter(
                 item => item.type === 'participant' && 
-                item.attributes.stats.teamId === teamId
-            );
+                item.attributes.stats.teamId === teamId &&
+                item.attributes.teamId !== 0 //Ensure valid team ID
+            ).sort((a, b) =>{
+                // Sort by kills (descending) and then by damage (descending)
+                const killsDiff = b.attributes.stats.kills - a.attributes.stats.kills;
+                if (killsDiff !== 0) return killsDiff;
+                return b.attributes.stats.damageDealt - a.attributes.stats.damageDealt;
+            });
+
+            // Get total participants in the match
+            const totalParticipants = matchData.included.filter(
+                item => item.type === 'participant'
+            ).length;
 
             // Generate HTML
-            const html = generateMatchReportHTML(matchData, playerStats, teamMembers);
+            const html = generateMatchReportHTML(
+                matchData,
+                playerStats, 
+                teamMembers,
+                totalParticipants);
 
             // Launch browser
             browser = await puppeteer.launch({
@@ -365,7 +178,8 @@ module.exports = {
             const page = await browser.newPage();
             await page.setViewport({ 
                 width: 1200,
-                height: 800
+                height: Math.max(600, 200 + (teamMembers.length * 80))  // Dynamic height based on team size
+
             });
 
             // Set content and wait for rendering
