@@ -2,6 +2,15 @@ const { SlashCommandBuilder, AttachmentBuilder } = require('discord.js');
 const { getPUBGPlayer, getMatchData } = require('../services/pubgApi');
 const puppeteer = require('puppeteer');
 
+const MAP_NAMES = {
+    'Baltic_Main': 'ERANGEL',
+    'Desert_Main': 'MIRAMAR',
+    'Range_Main': 'SANHOK',
+    'Savage_Main': 'VIKENDI',
+    'Kiki_Main': 'DESTON',
+    'Tiger_Main': 'TAEGO'
+};
+
 function generateMatchReportHTML(matchData, playerStats, teamMembers) {
     return `
     <!DOCTYPE html>
