@@ -1,6 +1,8 @@
 const { SlashCommandBuilder, AttachmentBuilder } = require('discord.js');
 const { getPUBGPlayer, getMatchData } = require('../services/pubgApi');
 const puppeteer = require('puppeteer');
+const { getTopWeapon } = require('./weaponAnalysis');
+
 
 // Map name translations
 const MAP_NAMES = {
