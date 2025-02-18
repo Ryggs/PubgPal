@@ -2,15 +2,6 @@ const { SlashCommandBuilder, AttachmentBuilder } = require('discord.js');
 const { getPUBGPlayer, getMatchData } = require('../services/pubgApi');
 const puppeteer = require('puppeteer');
 
-const MAP_NAMES = {
-    'Baltic_Main': 'ERANGEL',
-    'Desert_Main': 'MIRAMAR',
-    'Range_Main': 'SANHOK',
-    'Savage_Main': 'VIKENDI',
-    'Kiki_Main': 'DESTON',
-    'Tiger_Main': 'TAEGO'
-};
-
 function generateMatchReportHTML(matchData, playerStats, teamMembers) {
     return `
     <!DOCTYPE html>
@@ -19,238 +10,231 @@ function generateMatchReportHTML(matchData, playerStats, teamMembers) {
         <style>
             body { 
                 margin: 0; 
-                padding: 0; 
+                padding: 30px; 
                 background: #0A0A0A; 
-                font-family: Arial, sans-serif;
+                font-family: 'Tahoma', sans-serif;
                 color: white;
                 width: 1200px;
                 height: 800px;
-                position: relative;
-                overflow: hidden;
             }
             
-            .header {
-                position: absolute;
-                top: 20px;
-                left: 30px;
-                font-size: 38px;
+            .title {
+                font-size: 42px;
                 font-weight: bold;
-                font-family: 'Arial Black', sans-serif;
                 text-transform: uppercase;
+                margin-bottom: 20px;
+                font-family: 'Impact', sans-serif;
                 letter-spacing: 1px;
             }
             
             .tabs {
-                position: absolute;
-                top: 80px;
-                left: 30px;
                 display: flex;
                 gap: 2px;
+                margin-bottom: 30px;
             }
             
             .tab {
-                padding: 8px 20px;
-                background: #1A1A1A;
-                text-transform: uppercase;
+                padding: 8px 24px;
                 font-size: 14px;
-                letter-spacing: 1px;
+                text-transform: uppercase;
+                background: rgba(255, 255, 255, 0.1);
             }
             
             .tab.active {
-                background: #2A2A2A;
-                border-bottom: 2px solid #FFD700;
+                background: rgba(255, 255, 255, 0.2);
             }
             
-            .match-info {
-                position: absolute;
-                top: 130px;
-                left: 30px;
-                right: 30px;
+            .match-summary {
                 display: grid;
                 grid-template-columns: repeat(5, 1fr);
-                gap: 20px;
+                gap: 40px;
+                margin-bottom: 30px;
             }
             
-            .info-item {
+            .summary-item {
                 display: flex;
                 flex-direction: column;
             }
             
-            .info-label {
-                color: #666;
+            .summary-label {
                 font-size: 12px;
+                color: #888;
                 text-transform: uppercase;
+                margin-bottom: 5px;
                 letter-spacing: 1px;
-                margin-bottom: 4px;
             }
             
-            .info-value {
-                font-size: 20px;
-                color: white;
+            .summary-value {
+                font-size: 24px;
                 font-weight: bold;
                 letter-spacing: 1px;
             }
             
-            .info-value.bp {
+            .summary-value.bp {
                 color: #FFD700;
             }
             
             .player-rows {
-                position: absolute;
-                top: 200px;
-                left: 30px;
-                right: 400px;
                 display: flex;
                 flex-direction: column;
                 gap: 2px;
             }
             
             .player-row {
-                height: 70px;
+                height: 80px;
                 display: flex;
                 align-items: center;
-                padding: 0 10px;
+                background: linear-gradient(90deg, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.8) 100%);
                 position: relative;
                 overflow: hidden;
             }
 
-            .player-row:nth-child(1) { background: linear-gradient(90deg, rgba(255, 107, 107, 0.2), rgba(255, 230, 109, 0.1)); }
-            .player-row:nth-child(2) { background: linear-gradient(90deg, rgba(156, 39, 176, 0.2), rgba(103, 58, 183, 0.1)); }
-            .player-row:nth-child(3) { background: linear-gradient(90deg, rgba(192, 57, 43, 0.2), rgba(231, 76, 60, 0.1)); }
-            .player-row:nth-child(4) { background: linear-gradient(90deg, rgba(22, 160, 133, 0.2), rgba(26, 188, 156, 0.1)); }
+            .player-banner {
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                z-index: 1;
+            }
+
+            .player-row:nth-child(1) .player-banner {
+                background: linear-gradient(90deg, rgba(255,107,107,0.2), rgba(255,230,109,0.1));
+            }
+
+            .player-row:nth-child(2) .player-banner {
+                background: linear-gradient(90deg, rgba(0,150,255,0.2), rgba(0,75,255,0.1));
+            }
+
+            .player-row:nth-child(3) .player-banner {
+                background: linear-gradient(90deg, rgba(255,128,0,0.2), rgba(180,90,0,0.1));
+            }
+
+            .player-row:nth-child(4) .player-banner {
+                background: linear-gradient(90deg, rgba(255,128,128,0.2), rgba(180,90,90,0.1));
+            }
+            
+            .player-content {
+                display: flex;
+                align-items: center;
+                width: 100%;
+                z-index: 2;
+                padding: 0 20px;
+            }
             
             .player-info {
                 display: flex;
                 align-items: center;
-                width: 200px;
-                gap: 10px;
+                width: 300px;
+                gap: 15px;
             }
             
             .player-avatar {
-                width: 50px;
-                height: 50px;
-                background: #333;
+                width: 60px;
+                height: 60px;
+                position: relative;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+
+            .pubg-icon {
+                width: 40px;
+                height: 40px;
+                background: #555;
                 border-radius: 5px;
                 display: flex;
                 align-items: center;
                 justify-content: center;
-                font-size: 12px;
-                position: relative;
+                font-size: 10px;
+                color: #fff;
             }
-
+            
             .player-level {
                 position: absolute;
-                bottom: -5px;
-                right: -5px;
+                bottom: 0;
+                left: 0;
                 background: #FFD700;
                 color: black;
-                padding: 2px 4px;
-                border-radius: 2px;
-                font-size: 10px;
+                padding: 2px 6px;
+                font-size: 12px;
                 font-weight: bold;
             }
             
             .player-name {
-                font-size: 16px;
+                font-size: 18px;
                 font-weight: bold;
-                color: #FFF;
             }
             
-            .stats {
+            .player-stats {
                 display: flex;
                 flex: 1;
                 justify-content: space-between;
-                padding: 0 20px;
+                padding-right: 20px;
             }
             
             .stat {
                 display: flex;
                 flex-direction: column;
                 align-items: center;
-                min-width: 80px;
+                width: 100px;
             }
             
             .stat-label {
+                font-size: 12px;
                 color: #888;
-                font-size: 11px;
                 text-transform: uppercase;
-                letter-spacing: 0.5px;
                 margin-bottom: 4px;
             }
             
             .stat-value {
-                font-size: 18px;
+                font-size: 20px;
                 font-weight: bold;
-                color: #FFF;
             }
 
-            .player-model {
-                position: absolute;
-                top: 200px;
-                right: 30px;
-                width: 350px;
-                height: 500px;
-                background: url('/api/placeholder/350/500');
-                background-size: cover;
-            }
-
-            .bottom-buttons {
-                position: absolute;
-                bottom: 30px;
-                left: 30px;
-                right: 30px;
+            .medals {
+                width: 120px;
                 display: flex;
-                justify-content: space-between;
+                justify-content: flex-end;
+                gap: 5px;
             }
 
-            .btn {
-                padding: 10px 30px;
-                text-transform: uppercase;
-                font-size: 14px;
-                letter-spacing: 1px;
-                background: #333;
-                border: none;
-                color: white;
-                cursor: pointer;
-            }
-
-            .btn.ready {
-                background: #1A1A1A;
-            }
-
-            .btn.cancel {
-                background: #DAA520;
+            .medal {
+                width: 30px;
+                height: 30px;
+                background: rgba(255,255,255,0.1);
+                border-radius: 50%;
             }
         </style>
     </head>
     <body>
-        <div class="header">MATCH REPORT</div>
+        <div class="title">MATCH REPORT</div>
         
         <div class="tabs">
             <div class="tab active">SUMMARY</div>
             <div class="tab">WEAPONS</div>
         </div>
         
-        <div class="match-info">
-            <div class="info-item">
-                <div class="info-label">MAP</div>
-                <div class="info-value">${MAP_NAMES[matchData.data.attributes.mapName] || matchData.data.attributes.mapName}</div>
+        <div class="match-summary">
+            <div class="summary-item">
+                <div class="summary-label">MAP</div>
+                <div class="summary-value">${MAP_NAMES[matchData.data.attributes.mapName] || matchData.data.attributes.mapName}</div>
             </div>
-            <div class="info-item">
-                <div class="info-label">GAME MODE</div>
-                <div class="info-value">SQUAD</div>
+            <div class="summary-item">
+                <div class="summary-label">GAME MODE</div>
+                <div class="summary-value">SQUAD</div>
             </div>
-            <div class="info-item">
-                <div class="info-label">PLACEMENT</div>
-                <div class="info-value">#${playerStats.attributes.stats.winPlace} / ${matchData.data.attributes.totalParticipants}</div>
+            <div class="summary-item">
+                <div class="summary-label">PLACEMENT</div>
+                <div class="summary-value">#${playerStats.attributes.stats.winPlace} / ${matchData.data.attributes.totalParticipants}</div>
             </div>
-            <div class="info-item">
-                <div class="info-label">PHASES SURVIVED</div>
-                <div class="info-value">${playerStats.attributes.stats.swimDistance > 0 ? Math.floor(playerStats.attributes.stats.swimDistance / 100) : 0}</div>
+            <div class="summary-item">
+                <div class="summary-label">PHASES SURVIVED</div>
+                <div class="summary-value">0</div>
             </div>
-            <div class="info-item">
-                <div class="info-label">SURVIVAL BP EARNED</div>
-                <div class="info-value bp">+150</div>
+            <div class="summary-item">
+                <div class="summary-label">SURVIVAL BP EARNED</div>
+                <div class="summary-value bp">+150</div>
             </div>
         </div>
         
@@ -259,52 +243,44 @@ function generateMatchReportHTML(matchData, playerStats, teamMembers) {
                 const stats = member.attributes.stats;
                 return `
                 <div class="player-row">
-                    <div class="player-info">
-                        <div class="player-avatar">
-                            PUBG
-                            <div class="player-level">LV.${stats.level || 1}</div>
+                    <div class="player-banner"></div>
+                    <div class="player-content">
+                        <div class="player-info">
+                            <div class="player-avatar">
+                                <div class="pubg-icon">PUBG</div>
+                                <div class="player-level">LV.${stats.level || 1}</div>
+                            </div>
+                            <div class="player-name">${stats.name}</div>
                         </div>
-                        <div class="player-name">${stats.name}</div>
-                    </div>
-                    <div class="stats">
-                        <div class="stat">
-                            <div class="stat-label">KILLS</div>
-                            <div class="stat-value">${stats.kills}</div>
+                        <div class="player-stats">
+                            <div class="stat">
+                                <div class="stat-label">KILLS</div>
+                                <div class="stat-value">${stats.kills}</div>
+                            </div>
+                            <div class="stat">
+                                <div class="stat-label">ASSISTS</div>
+                                <div class="stat-value">${stats.assists}</div>
+                            </div>
+                            <div class="stat">
+                                <div class="stat-label">DAMAGE</div>
+                                <div class="stat-value">${Math.round(stats.damageDealt)}</div>
+                            </div>
+                            <div class="stat">
+                                <div class="stat-label">TIME ALIVE</div>
+                                <div class="stat-value">${formatTime(stats.timeSurvived)}</div>
+                            </div>
+                            <div class="stat">
+                                <div class="stat-label">TOP WEAPON</div>
+                                <div class="stat-value">${getTopWeapon(stats)}</div>
+                            </div>
                         </div>
-                        <div class="stat">
-                            <div class="stat-label">ASSISTS</div>
-                            <div class="stat-value">${stats.assists}</div>
-                        </div>
-                        <div class="stat">
-                            <div class="stat-label">DAMAGE</div>
-                            <div class="stat-value">${Math.round(stats.damageDealt)}</div>
-                        </div>
-                        <div class="stat">
-                            <div class="stat-label">TIME ALIVE</div>
-                            <div class="stat-value">${formatTime(stats.timeSurvived)}</div>
-                        </div>
-                        <div class="stat">
-                            <div class="stat-label">TOP WEAPON</div>
-                            <div class="stat-value">${getTopWeapon(stats)}</div>
-                        </div>
-                        <div class="stat">
-                            <div class="stat-label">MEDALS</div>
-                            <div class="stat-value">${stats.DBNOs || '-'}</div>
+                        <div class="medals">
+                            ${getMedalIcons(stats)}
                         </div>
                     </div>
                 </div>
                 `;
             }).join('')}
-        </div>
-
-        <div class="player-model"></div>
-
-        <div class="bottom-buttons">
-            <button class="btn">BACK</button>
-            <div>
-                <button class="btn ready">READY</button>
-                <button class="btn cancel">CANCEL</button>
-            </div>
         </div>
     </body>
     </html>
@@ -318,9 +294,16 @@ function formatTime(seconds) {
 }
 
 function getTopWeapon(stats) {
-    // You would implement logic here to determine top weapon from stats
-    // For now returning placeholder
-    return stats.headshotKills > 2 ? 'M416' : 'AKM';
+    // In a real implementation, you would analyze the weapon usage stats
+    // For now, returning placeholder values
+    const weapons = ['M416', 'AKM', 'AWM', 'M24'];
+    return weapons[Math.floor(Math.random() * weapons.length)];
+}
+
+function getMedalIcons(stats) {
+    // Calculate number of medals based on performance
+    const numMedals = Math.min(Math.floor(stats.kills / 2 + stats.assists / 2), 3);
+    return Array(numMedals).fill('<div class="medal"></div>').join('');
 }
 
 module.exports = {
