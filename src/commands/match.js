@@ -3,7 +3,6 @@ const { getPUBGPlayer, getMatchData } = require('../services/pubgApi');
 const puppeteer = require('puppeteer');
 const { getTopWeapon } = require('./weaponAnalysis');
 
-
 // Map name translations
 const MAP_NAMES = {
     'Baltic_Main': 'ERANGEL',
@@ -14,13 +13,137 @@ const MAP_NAMES = {
     'Tiger_Main': 'TAEGO'
 };
 
+function calculatePhasesSurvived(stats) {
+    if (!stats || !stats.timeSurvived) return 0;
+    return Math.floor(stats.timeSurvived / 300); // Assuming each phase is roughly 5 minutes
+}
+
+function formatTime(seconds) {
+    if (!seconds) return '00:00';
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = Math.floor(seconds % 60);
+    return `${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
+}
+
 function generateMatchReportHTML(matchData, playerStats, teamMembers, totalParticipants) {
     return `
     <!DOCTYPE html>
     <html>
     <head>
         <style>
-            /* ... (keep existing styles) ... */
+            body { 
+                margin: 0; 
+                padding: 20px; 
+                background: #0A0A0A; 
+                font-family: 'Arial', sans-serif;
+                color: white;
+            }
+            
+            .title {
+                font-size: 32px;
+                font-weight: bold;
+                margin-bottom: 20px;
+            }
+            
+            .tabs {
+                display: flex;
+                gap: 2px;
+                margin-bottom: 20px;
+            }
+            
+            .tab {
+                padding: 8px 20px;
+                background: #1A1A1A;
+                cursor: pointer;
+            }
+            
+            .tab.active {
+                background: #2A2A2A;
+            }
+            
+            .match-info {
+                display: grid;
+                grid-template-columns: repeat(5, 1fr);
+                gap: 20px;
+                margin-bottom: 30px;
+                background: #1A1A1A;
+                padding: 20px;
+            }
+            
+            .info-item {
+                display: flex;
+                flex-direction: column;
+            }
+            
+            .info-label {
+                color: #666;
+                font-size: 14px;
+                text-transform: uppercase;
+                margin-bottom: 5px;
+            }
+            
+            .info-value {
+                font-size: 24px;
+                color: white;
+            }
+            
+            .info-value.bp {
+                color: #FFD700;
+            }
+            
+            .player-rows {
+                display: flex;
+                flex-direction: column;
+                gap: 2px;
+            }
+            
+            .player-row {
+                display: flex;
+                align-items: center;
+                background: #1A1A1A;
+                padding: 10px 20px;
+            }
+            
+            .player-info {
+                display: flex;
+                align-items: center;
+                width: 200px;
+                gap: 10px;
+            }
+            
+            .player-level {
+                background: #FFD700;
+                color: black;
+                padding: 2px 6px;
+                border-radius: 2px;
+                font-size: 12px;
+                font-weight: bold;
+            }
+            
+            .player-stats {
+                display: flex;
+                flex: 1;
+                justify-content: space-between;
+            }
+            
+            .stat {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                width: 100px;
+            }
+            
+            .stat-label {
+                color: #666;
+                font-size: 12px;
+                text-transform: uppercase;
+                margin-bottom: 4px;
+            }
+            
+            .stat-value {
+                font-size: 20px;
+                color: white;
+            }
         </style>
     </head>
     <body>
@@ -59,35 +182,30 @@ function generateMatchReportHTML(matchData, playerStats, teamMembers, totalParti
                 const stats = member.attributes.stats;
                 return `
                 <div class="player-row">
-                    <div class="player-content">
-                        <div class="player-info">
-                            <div class="player-avatar">
-                                <div class="pubg-icon">PUBG</div>
-                                <div class="player-level">LV.${stats.level || 1}</div>
-                            </div>
-                            <div class="player-name">${stats.name}</div>
+                    <div class="player-info">
+                        <div class="player-level">LV.${stats.level || 1}</div>
+                        <div class="player-name">${stats.name}</div>
+                    </div>
+                    <div class="player-stats">
+                        <div class="stat">
+                            <div class="stat-label">KILLS</div>
+                            <div class="stat-value">${stats.kills || 0}</div>
                         </div>
-                        <div class="player-stats">
-                            <div class="stat">
-                                <div class="stat-label">KILLS</div>
-                                <div class="stat-value">${stats.kills}</div>
-                            </div>
-                            <div class="stat">
-                                <div class="stat-label">ASSISTS</div>
-                                <div class="stat-value">${stats.assists}</div>
-                            </div>
-                            <div class="stat">
-                                <div class="stat-label">DAMAGE</div>
-                                <div class="stat-value">${Math.round(stats.damageDealt)}</div>
-                            </div>
-                            <div class="stat">
-                                <div class="stat-label">TIME ALIVE</div>
-                                <div class="stat-value">${formatTime(stats.timeSurvived)}</div>
-                            </div>
-                            <div class="stat">
-                                <div class="stat-label">TOP WEAPON</div>
-                                <div class="stat-value">${getTopWeapon(stats)}</div>
-                            </div>
+                        <div class="stat">
+                            <div class="stat-label">ASSISTS</div>
+                            <div class="stat-value">${stats.assists || 0}</div>
+                        </div>
+                        <div class="stat">
+                            <div class="stat-label">DAMAGE</div>
+                            <div class="stat-value">${Math.round(stats.damageDealt || 0)}</div>
+                        </div>
+                        <div class="stat">
+                            <div class="stat-label">TIME ALIVE</div>
+                            <div class="stat-value">${formatTime(stats.timeSurvived)}</div>
+                        </div>
+                        <div class="stat">
+                            <div class="stat-label">TOP WEAPON</div>
+                            <div class="stat-value">${getTopWeapon(stats)}</div>
                         </div>
                     </div>
                 </div>
@@ -97,22 +215,6 @@ function generateMatchReportHTML(matchData, playerStats, teamMembers, totalParti
     </body>
     </html>
     `;
-}
-
-function formatTime(seconds) {
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = Math.floor(seconds % 60);
-    return `${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
-}
-
-const { getTopWeapon, analyzeWeaponPerformance, WEAPON_DISPLAY_NAMES } = require('./weaponAnalysis');
-
-// The getTopWeapon function is now imported from weaponAnalysis.js
-
-function getMedalIcons(stats) {
-    // Calculate number of medals based on performance
-    const numMedals = Math.min(Math.floor(stats.kills / 2 + stats.assists / 2), 3);
-    return Array(numMedals).fill('<div class="medal"></div>').join('');
 }
 
 module.exports = {
@@ -132,12 +234,14 @@ module.exports = {
         try {
             const username = interaction.options.getString('username');
             
-            // Get player and match data
+            console.log('Getting player data for:', username);
             const playerData = await getPUBGPlayer(username);
+            
+            console.log('Getting match data');
             const latestMatchId = playerData.relationships.matches.data[0].id;
             const matchData = await getMatchData(latestMatchId);
 
-            // Get team data
+            console.log('Finding player stats');
             const playerStats = matchData.included.find(
                 item => item.type === 'participant' && 
                 item.attributes.stats.name.toLowerCase() === username.toLowerCase()
@@ -147,62 +251,61 @@ module.exports = {
                 return await interaction.editReply('No match data found for this player.');
             }
 
+            console.log('Getting team members');
             const teamId = playerStats.attributes.stats.teamId;
             const teamMembers = matchData.included.filter(
                 item => item.type === 'participant' && 
                 item.attributes.stats.teamId === teamId &&
-                item.attributes.stats.teamId !== 0 //Ensure valid team ID
-            ).sort((a, b) =>{
-                // Sort by kills (descending) and then by damage (descending)
+                item.attributes.stats.teamId !== 0
+            ).sort((a, b) => {
                 const killsDiff = b.attributes.stats.kills - a.attributes.stats.kills;
                 if (killsDiff !== 0) return killsDiff;
                 return b.attributes.stats.damageDealt - a.attributes.stats.damageDealt;
             });
 
-            // Get total participants in the match
             const totalParticipants = matchData.included.filter(
                 item => item.type === 'participant'
             ).length;
 
-            // Generate HTML
-            const html = generateMatchReportHTML(
-                matchData,
-                playerStats, 
-                teamMembers,
-                totalParticipants);
+            console.log('Generating HTML');
+            const html = generateMatchReportHTML(matchData, playerStats, teamMembers, totalParticipants);
 
-            // Launch browser
+            console.log('Launching browser');
             browser = await puppeteer.launch({
                 args: ['--no-sandbox', '--disable-setuid-sandbox'],
-                timeout: 10000
+                timeout: 30000
             });
 
+            console.log('Creating page');
             const page = await browser.newPage();
             await page.setViewport({ 
                 width: 1200,
-                height: Math.max(600, 200 + (teamMembers.length * 80))  // Dynamic height based on team size
-
+                height: Math.max(600, 200 + (teamMembers.length * 80))
             });
 
-            // Set content and wait for rendering
+            console.log('Setting content');
             await page.setContent(html);
-            await page.waitForSelector('.player-rows');
+            
+            console.log('Waiting for selector');
+            await page.waitForSelector('.player-rows', { timeout: 5000 });
 
-            // Take screenshot
+            console.log('Taking screenshot');
             const screenshot = await page.screenshot({
                 type: 'png',
                 fullPage: true
             });
 
+            console.log('Creating attachment');
             const attachment = new AttachmentBuilder(Buffer.from(screenshot), { 
                 name: 'match-report.png'
             });
 
+            console.log('Sending reply');
             await interaction.editReply({ files: [attachment] });
 
         } catch (error) {
             console.error('Error in match command:', error);
-            await interaction.editReply(`Error: ${error.message}`);
+            await interaction.editReply(`Error: ${error.message}\nStack: ${error.stack}`);
         } finally {
             if (browser) {
                 await browser.close();
