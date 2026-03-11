@@ -15,12 +15,30 @@ const MAP_NAMES = {
     'Neon_Main': 'RONDO'
 };
 
-function getMapThumbnailUrl(mapName) {
-    return `${PUBG_ASSETS_BASE}/Maps/Thumbnails/${mapName}_Thumbnail.png`;
+// Map API identifiers to the actual filenames in pubg/api-assets repo
+// The repo uses display names like Erangel_Main, not API names like Baltic_Main
+const MAP_ASSET_FILENAMES = {
+    'Baltic_Main': 'Erangel_Main',
+    'Desert_Main': 'Miramar_Main',
+    'Savage_Main': 'Sanhok_Main',
+    'DihorOtok_Main': 'Vikendi_Main',
+    'Range_Main': 'Camp_Jackal_Main',
+    'Kiki_Main': 'Deston_Main',
+    'Tiger_Main': 'Taego_Main',
+    'Summerland_Main': 'Karakin_Main',
+    'Heaven_Main': 'Haven_Main',
+    'Chimera_Main': 'Paramo_Main',
+    'Neon_Main': 'Rondo_Main'
+};
+
+function getMapImageUrl(mapName) {
+    const filename = MAP_ASSET_FILENAMES[mapName] || mapName;
+    return `${PUBG_ASSETS_BASE}/Maps/${filename}_Low_Res.png`;
 }
 
 function getMapFullUrl(mapName) {
-    return `${PUBG_ASSETS_BASE}/Maps/${mapName}.png`;
+    const filename = MAP_ASSET_FILENAMES[mapName] || mapName;
+    return `${PUBG_ASSETS_BASE}/Maps/${filename}_High_Res.png`;
 }
 
 function getWeaponIconUrl(weaponId) {
@@ -33,7 +51,7 @@ function getMapDisplayName(mapName) {
 
 module.exports = {
     MAP_NAMES,
-    getMapThumbnailUrl,
+    getMapImageUrl,
     getMapFullUrl,
     getWeaponIconUrl,
     getMapDisplayName

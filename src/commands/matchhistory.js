@@ -1,6 +1,6 @@
 const { SlashCommandBuilder, AttachmentBuilder } = require('discord.js');
 const { getPUBGPlayer, getMatchData } = require('../services/pubgApi');
-const { getMapThumbnailUrl, getMapDisplayName } = require('../utils/assets');
+const { getMapImageUrl, getMapDisplayName } = require('../utils/assets');
 const puppeteer = require('puppeteer');
 const axios = require('axios');
 
@@ -13,7 +13,7 @@ async function fetchMapImages(matches) {
     const imageMap = {};
     await Promise.all(uniqueMaps.map(async (mapName) => {
         try {
-            const url = getMapThumbnailUrl(mapName);
+            const url = getMapImageUrl(mapName);
             const response = await axios.get(url, {
                 responseType: 'arraybuffer',
                 timeout: 8000

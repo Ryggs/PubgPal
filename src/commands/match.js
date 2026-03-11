@@ -2,7 +2,7 @@ const { SlashCommandBuilder, AttachmentBuilder } = require('discord.js');
 const { getPUBGPlayer, getMatchData } = require('../services/pubgApi');
 const puppeteer = require('puppeteer');
 const { getTopWeapon } = require('../utils/weaponAnalysis');
-const { getMapDisplayName, getMapThumbnailUrl } = require('../utils/assets');
+const { getMapDisplayName, getMapImageUrl } = require('../utils/assets');
 
 function calculatePhasesSurvived(stats) {
     if (!stats || !stats.timeSurvived) return 0;
@@ -134,7 +134,7 @@ function generateMatchReportHTML(matchData, playerStats, teamMembers, totalParti
         </style>
     </head>
     <body>
-        <div class="map-banner" style="background-image: url('${getMapThumbnailUrl(mapName)}');">
+        <div class="map-banner" style="background-image: url('${getMapImageUrl(mapName)}');">
             <div class="banner-content">
                 <div>
                     <div class="banner-title">MATCH REPORT</div>
