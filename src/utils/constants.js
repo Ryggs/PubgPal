@@ -4,7 +4,7 @@ module.exports = {
     
     // Cache Configuration
     CACHE_TTL: {
-        PLAYER: 5 * 60 * 1000,       // 5 minutes
+        PLAYER: 60 * 1000,           // 1 minute (keeps match list fresh)
         MATCH: 30 * 60 * 1000,       // 30 minutes
         SEASON: 24 * 60 * 60 * 1000  // 24 hours
     },
