@@ -1,8 +1,7 @@
 const { SlashCommandBuilder, AttachmentBuilder } = require('discord.js');
 const { getPUBGPlayer, getMatchData } = require('../services/pubgApi');
 const puppeteer = require('puppeteer');
-const axios = require('axios');
-const { getMapDisplayName, getMapImageUrl } = require('../utils/assets');
+const { getMapDisplayName } = require('../utils/assets');
 
 function formatTime(seconds) {
     if (!seconds) return '00:00';
@@ -11,22 +10,7 @@ function formatTime(seconds) {
     return `${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
 }
 
-async function fetchMapImage(mapName) {
-    try {
-        const url = getMapImageUrl(mapName);
-        const response = await axios.get(url, {
-            responseType: 'arraybuffer',
-            timeout: 8000
-        });
-        const base64 = Buffer.from(response.data).toString('base64');
-        return `data:image/png;base64,${base64}`;
-    } catch (err) {
-        console.warn(`Failed to fetch map image for ${mapName}:`, err.message);
-        return '';
-    }
-}
-
-function generateMatchReportHTML(matchData, playerStats, teamMembers, totalParticipants, mapImage) {
+function generateMatchReportHTML(matchData, playerStats, teamMembers, totalParticipants) {
     const mapName = matchData.data.attributes.mapName;
     const gameMode = matchData.data.attributes.gameMode || 'squad';
     const matchType = matchData.data.attributes.matchType;
@@ -120,32 +104,13 @@ function generateMatchReportHTML(matchData, playerStats, teamMembers, totalParti
                 position: relative;
             }
 
-            /* ── Name column with map background ── */
+            /* ── Name column ── */
             .player-name-area {
                 width: 380px;
                 height: 100%;
                 display: flex;
                 align-items: center;
                 gap: 14px;
-                position: relative;
-                overflow: hidden;
-                margin-left: -40px;
-                padding-left: 40px;
-            }
-            .player-name-area::before {
-                content: '';
-                position: absolute;
-                left: 0;
-                top: 0;
-                width: 100%;
-                height: 100%;
-                background-size: cover;
-                background-position: center;
-                opacity: 0.15;
-            }
-            .player-name-area > * {
-                position: relative;
-                z-index: 1;
             }
             .player-level {
                 font-size: 13px;
@@ -216,7 +181,7 @@ function generateMatchReportHTML(matchData, playerStats, teamMembers, totalParti
             const stats = member.attributes.stats;
             return `
             <div class="player-row">
-                <div class="player-name-area"${mapImage ? ` style="--bg: url('${mapImage}')"` : ''}>
+                <div class="player-name-area">
                     <div>
                         <div class="player-name">${stats.name}</div>
                         <div class="player-level"><span class="dot"></span>Lv.${stats.level || 1}</div>
@@ -278,11 +243,7 @@ module.exports = {
                 item => item.type === 'participant'
             ).length;
 
-            // Pre-fetch the map image as base64
-            const mapName = matchData.data.attributes.mapName;
-            const mapImage = await fetchMapImage(mapName);
-
-            const html = generateMatchReportHTML(matchData, playerStats, teamMembers, totalParticipants, mapImage);
+            const html = generateMatchReportHTML(matchData, playerStats, teamMembers, totalParticipants);
 
             browser = await puppeteer.launch({
                 args: ['--no-sandbox', '--disable-setuid-sandbox'],
@@ -291,7 +252,7 @@ module.exports = {
 
             const page = await browser.newPage();
             await page.setViewport({ width: 1000, height: 600 });
-            await page.setContent(html, { waitUntil: 'networkidle0', timeout: 15000 });
+            await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 10000 });
 
             const screenshot = await page.screenshot({
                 type: 'png',
