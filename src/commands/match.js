@@ -1,7 +1,13 @@
 const { SlashCommandBuilder, AttachmentBuilder } = require('discord.js');
-const { getPUBGPlayer, getMatchData } = require('../services/pubgApi');
+const { getPUBGPlayer, getMatchData, getCurrentSeason, getPlayerSeasonStats } = require('../services/pubgApi');
 const puppeteer = require('puppeteer');
-const { getMapDisplayName } = require('../utils/assets');
+const axios = require('axios');
+const { getMapDisplayName, getRankInsigniaUrl } = require('../utils/assets');
+
+const MAX_TEAM_MEMBERS = 4;
+
+// Preferred mode order for finding ranked stats
+const MODE_PRIORITY = ['squad-fpp', 'squad', 'duo-fpp', 'duo', 'solo-fpp', 'solo'];
 
 function formatTime(seconds) {
     if (!seconds) return '00:00';
@@ -10,13 +16,36 @@ function formatTime(seconds) {
     return `${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
 }
 
-function generateMatchReportHTML(matchData, playerStats, teamMembers, totalParticipants) {
+function findPlayerRankInfo(rankedStats) {
+    if (!rankedStats) return null;
+    for (const mode of MODE_PRIORITY) {
+        const stats = rankedStats[mode];
+        if (stats && stats.currentTier && stats.currentTier.tier !== 'Unranked') {
+            return stats.currentTier;
+        }
+    }
+    return null;
+}
+
+async function fetchInsigniaBase64(tier, subTier) {
+    try {
+        const url = getRankInsigniaUrl(tier, subTier);
+        const response = await axios.get(url, {
+            responseType: 'arraybuffer',
+            timeout: 5000
+        });
+        return `data:image/png;base64,${Buffer.from(response.data).toString('base64')}`;
+    } catch {
+        return '';
+    }
+}
+
+function generateMatchReportHTML(matchData, playerStats, teamMembers, totalParticipants, rankBadge) {
     const mapName = matchData.data.attributes.mapName;
     const gameMode = matchData.data.attributes.gameMode || 'squad';
     const matchType = matchData.data.attributes.matchType;
     const pStats = playerStats.attributes.stats;
 
-    // Determine FPP/TPP from gameMode string
     const perspective = gameMode.toLowerCase().includes('fpp') ? 'FPP' : 'TPP';
     const modeBase = gameMode.replace(/-?fpp/i, '').replace(/-?tpp/i, '').toUpperCase() || 'SQUAD';
     const matchTypeLabel = matchType === 'competitive' ? 'RANKED' : 'NORMAL';
@@ -29,56 +58,48 @@ function generateMatchReportHTML(matchData, playerStats, teamMembers, totalParti
         <style>
             * { margin: 0; padding: 0; box-sizing: border-box; }
             body {
-                width: 1000px;
+                width: 820px;
                 background: #0d0d0d;
                 font-family: 'Rajdhani', Arial, sans-serif;
                 color: white;
             }
 
-            /* ── Top summary bar ── */
+            /* ── Summary bar ── */
             .summary-bar {
                 display: flex;
                 align-items: center;
                 background: #141414;
-                padding: 18px 40px;
+                padding: 16px 30px;
                 border-bottom: 1px solid #222;
             }
-            .summary-item {
-                flex: 1;
-            }
+            .summary-item { flex: 1; }
             .summary-item:last-child { text-align: right; }
             .summary-label {
-                font-size: 11px;
-                color: #666;
+                font-size: 10px;
+                color: #555;
                 text-transform: uppercase;
                 letter-spacing: 2px;
-                margin-bottom: 4px;
+                margin-bottom: 2px;
             }
             .summary-value {
-                font-size: 28px;
+                font-size: 24px;
                 font-weight: 700;
                 letter-spacing: 1px;
             }
             .summary-value.gold { color: #FFD700; }
 
-            /* ── Divider line ── */
-            .divider {
-                height: 1px;
-                background: #333;
-            }
-
             /* ── Column headers ── */
             .col-headers {
                 display: flex;
                 align-items: center;
-                padding: 14px 40px;
-                background: #111;
-                border-bottom: 1px solid #222;
+                padding: 10px 30px;
+                background: #0d0d0d;
+                border-bottom: 1px solid #1a1a1a;
             }
             .col-name-header {
-                width: 380px;
-                font-size: 12px;
-                color: #666;
+                width: 260px;
+                font-size: 11px;
+                color: #444;
                 text-transform: uppercase;
                 letter-spacing: 2px;
                 font-weight: 600;
@@ -86,8 +107,8 @@ function generateMatchReportHTML(matchData, playerStats, teamMembers, totalParti
             .col-header {
                 flex: 1;
                 text-align: center;
-                font-size: 12px;
-                color: #666;
+                font-size: 11px;
+                color: #444;
                 text-transform: uppercase;
                 letter-spacing: 2px;
                 font-weight: 600;
@@ -97,54 +118,46 @@ function generateMatchReportHTML(matchData, playerStats, teamMembers, totalParti
             .player-row {
                 display: flex;
                 align-items: center;
-                padding: 0 40px;
-                height: 80px;
+                padding: 0 30px;
+                height: 58px;
                 background: #141414;
                 border-bottom: 1px solid #1a1a1a;
-                position: relative;
+            }
+            .player-row:nth-child(even) {
+                background: #121212;
             }
 
-            /* ── Name column ── */
             .player-name-area {
-                width: 380px;
-                height: 100%;
+                width: 260px;
                 display: flex;
                 align-items: center;
-                gap: 14px;
+                gap: 10px;
             }
-            .player-level {
-                font-size: 13px;
-                color: #aaa;
-            }
-            .player-level .dot {
-                display: inline-block;
-                width: 6px;
-                height: 6px;
-                border-radius: 50%;
-                background: #888;
-                margin-right: 4px;
-                vertical-align: middle;
+            .rank-badge {
+                width: 32px;
+                height: 32px;
+                object-fit: contain;
+                flex-shrink: 0;
             }
             .player-name {
-                font-size: 18px;
+                font-size: 16px;
                 font-weight: 700;
                 letter-spacing: 0.5px;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
             }
 
-            /* ── Stat columns ── */
             .player-stat {
                 flex: 1;
                 text-align: center;
-                font-size: 20px;
+                font-size: 18px;
                 font-weight: 600;
             }
-            .player-stat.highlight {
-                color: #FFD700;
-            }
+            .player-stat.dmg { color: #FFD700; }
         </style>
     </head>
     <body>
-        <!-- Summary bar -->
         <div class="summary-bar">
             <div class="summary-item">
                 <div class="summary-label">Placement</div>
@@ -164,9 +177,6 @@ function generateMatchReportHTML(matchData, playerStats, teamMembers, totalParti
             </div>
         </div>
 
-        <div class="divider"></div>
-
-        <!-- Column headers -->
         <div class="col-headers">
             <div class="col-name-header">Name</div>
             <div class="col-header">Kills</div>
@@ -176,22 +186,19 @@ function generateMatchReportHTML(matchData, playerStats, teamMembers, totalParti
             <div class="col-header">Time Alive</div>
         </div>
 
-        <!-- Player rows -->
         ${teamMembers.map(member => {
-            const stats = member.attributes.stats;
+            const s = member.attributes.stats;
             return `
             <div class="player-row">
                 <div class="player-name-area">
-                    <div>
-                        <div class="player-name">${stats.name}</div>
-                        <div class="player-level"><span class="dot"></span>Lv.${stats.level || 1}</div>
-                    </div>
+                    ${rankBadge ? `<img class="rank-badge" src="${rankBadge}"/>` : ''}
+                    <div class="player-name">${s.name}</div>
                 </div>
-                <div class="player-stat">${stats.kills || 0}</div>
-                <div class="player-stat highlight">${Math.round(stats.damageDealt || 0)}</div>
-                <div class="player-stat">${stats.assists || 0}</div>
-                <div class="player-stat">${stats.revives || 0}</div>
-                <div class="player-stat">${formatTime(stats.timeSurvived)}</div>
+                <div class="player-stat">${s.kills || 0}</div>
+                <div class="player-stat dmg">${Math.round(s.damageDealt || 0)}</div>
+                <div class="player-stat">${s.assists || 0}</div>
+                <div class="player-stat">${s.revives || 0}</div>
+                <div class="player-stat">${formatTime(s.timeSurvived)}</div>
             </div>`;
         }).join('')}
     </body>
@@ -237,13 +244,27 @@ module.exports = {
                 const killsDiff = b.attributes.stats.kills - a.attributes.stats.kills;
                 if (killsDiff !== 0) return killsDiff;
                 return b.attributes.stats.damageDealt - a.attributes.stats.damageDealt;
-            });
+            }).slice(0, MAX_TEAM_MEMBERS);
 
             const totalParticipants = matchData.included.filter(
                 item => item.type === 'participant'
             ).length;
 
-            const html = generateMatchReportHTML(matchData, playerStats, teamMembers, totalParticipants);
+            // Fetch player's ranked tier badge (non-blocking)
+            let rankBadge = '';
+            try {
+                const season = await getCurrentSeason();
+                const seasonStats = await getPlayerSeasonStats(playerData.id, season.id);
+                const rankedStats = seasonStats.data?.attributes?.rankedGameModeStats;
+                const tierInfo = findPlayerRankInfo(rankedStats);
+                if (tierInfo) {
+                    rankBadge = await fetchInsigniaBase64(tierInfo.tier, tierInfo.subTier);
+                }
+            } catch (err) {
+                console.warn('Could not fetch rank badge:', err.message);
+            }
+
+            const html = generateMatchReportHTML(matchData, playerStats, teamMembers, totalParticipants, rankBadge);
 
             browser = await puppeteer.launch({
                 args: ['--no-sandbox', '--disable-setuid-sandbox'],
@@ -251,7 +272,7 @@ module.exports = {
             });
 
             const page = await browser.newPage();
-            await page.setViewport({ width: 1000, height: 600 });
+            await page.setViewport({ width: 820, height: 600 });
             await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 10000 });
 
             const screenshot = await page.screenshot({

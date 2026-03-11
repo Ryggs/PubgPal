@@ -127,6 +127,27 @@ async function getPlayerSeasonStats(playerId, seasonId) {
     }
 }
 
+async function getPlayerAccountStats(playerId, seasonId) {
+    const cacheKey = `account-stats:${playerId}:${seasonId}`;
+    const cached = cache.get(cacheKey);
+    if (cached) return cached;
+
+    try {
+        const response = await axios.get(
+            `${PUBG_API_URL}/players/${playerId}/seasons/${seasonId}`,
+            { headers: API_HEADERS }
+        );
+        const stats = response.data;
+        cache.set(cacheKey, stats, CACHE_TTL.PLAYER);
+        return stats;
+    } catch (error) {
+        if (error.response && error.response.status === 429) {
+            throw new Error('Rate limit exceeded. Please try again later.');
+        }
+        return null;
+    }
+}
+
 // Start periodic cache cleanup
 cache.startCleanup();
 
@@ -134,5 +155,6 @@ module.exports = {
     getPUBGPlayer,
     getMatchData,
     getCurrentSeason,
-    getPlayerSeasonStats
+    getPlayerSeasonStats,
+    getPlayerAccountStats
 };

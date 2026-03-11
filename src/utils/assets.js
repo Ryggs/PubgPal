@@ -49,10 +49,24 @@ function getMapDisplayName(mapName) {
     return MAP_NAMES[mapName] || mapName;
 }
 
+// Ranked tier insignia icons from pubg/api-assets
+// Tier values from API: Bronze, Silver, Gold, Platinum, Diamond, Master
+// SubTier: 1-5 (Master has no sub-tier)
+function getRankInsigniaUrl(tier, subTier) {
+    if (!tier || tier === 'Unranked') {
+        return `${PUBG_ASSETS_BASE}/Icons/Insignias/Unranked.png`;
+    }
+    if (tier === 'Master') {
+        return `${PUBG_ASSETS_BASE}/Icons/Insignias/Master.png`;
+    }
+    return `${PUBG_ASSETS_BASE}/Icons/Insignias/${tier}-${subTier || 5}.png`;
+}
+
 module.exports = {
     MAP_NAMES,
     getMapImageUrl,
     getMapFullUrl,
     getWeaponIconUrl,
-    getMapDisplayName
+    getMapDisplayName,
+    getRankInsigniaUrl
 };
