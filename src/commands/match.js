@@ -6,7 +6,7 @@ const { getMapDisplayName, getMapThumbnailUrl } = require('../utils/assets');
 
 function calculatePhasesSurvived(stats) {
     if (!stats || !stats.timeSurvived) return 0;
-    return Math.floor(stats.timeSurvived / 300); // Assuming each phase is roughly 5 minutes
+    return Math.floor(stats.timeSurvived / 300);
 }
 
 function formatTime(seconds) {
@@ -17,219 +17,178 @@ function formatTime(seconds) {
 }
 
 function generateMatchReportHTML(matchData, playerStats, teamMembers, totalParticipants) {
+    const mapName = matchData.data.attributes.mapName;
+    const gameMode = matchData.data.attributes.gameMode || 'squad';
+    const matchType = matchData.data.attributes.matchType;
+    const pStats = playerStats.attributes.stats;
+
     return `
     <!DOCTYPE html>
     <html>
     <head>
+        <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
         <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
             body {
-                margin: 0;
-                padding: 0;
+                width: 800px;
                 background: #0A0A0A;
-                font-family: 'Arial', sans-serif;
+                font-family: 'Rajdhani', Arial, sans-serif;
                 color: white;
             }
 
             .map-banner {
-                height: 120px;
+                height: 140px;
                 background-size: cover;
                 background-position: center;
                 position: relative;
                 display: flex;
                 align-items: flex-end;
-                padding: 15px 20px;
+                padding: 15px 25px;
             }
             .map-banner::before {
                 content: '';
                 position: absolute;
                 inset: 0;
-                background: linear-gradient(transparent 30%, rgba(10,10,10,0.85));
+                background: linear-gradient(transparent 20%, rgba(10,10,10,0.9));
             }
-
-            .title {
-                font-size: 32px;
-                font-weight: bold;
-                margin-bottom: 20px;
+            .banner-content {
                 position: relative;
+                display: flex;
+                justify-content: space-between;
+                align-items: flex-end;
+                width: 100%;
+            }
+            .banner-title {
+                font-size: 28px;
+                font-weight: 700;
+                letter-spacing: 3px;
+            }
+            .banner-meta {
+                font-size: 16px;
+                color: #aaa;
+                letter-spacing: 1px;
             }
 
-            .content {
-                padding: 20px;
-            }
-            
-            .tabs {
+            .match-summary {
                 display: flex;
-                gap: 2px;
-                margin-bottom: 20px;
+                background: #141414;
+                border-bottom: 1px solid #222;
             }
-            
-            .tab {
-                padding: 8px 20px;
-                background: #1A1A1A;
-                cursor: pointer;
+            .summary-item {
+                flex: 1;
+                padding: 16px 20px;
+                border-right: 1px solid #222;
             }
-            
-            .tab.active {
-                background: #2A2A2A;
-            }
-            
-            .match-info {
-                display: grid;
-                grid-template-columns: repeat(5, 1fr);
-                gap: 20px;
-                margin-bottom: 30px;
-                background: #1A1A1A;
-                padding: 20px;
-            }
-            
-            .info-item {
-                display: flex;
-                flex-direction: column;
-            }
-            
-            .info-label {
+            .summary-item:last-child { border-right: none; }
+            .summary-label {
                 color: #666;
-                font-size: 14px;
+                font-size: 11px;
                 text-transform: uppercase;
-                margin-bottom: 5px;
+                letter-spacing: 1.5px;
+                margin-bottom: 4px;
             }
-            
-            .info-value {
-                font-size: 24px;
+            .summary-value {
+                font-size: 22px;
+                font-weight: 700;
                 color: white;
             }
-            
-            .info-value.bp {
-                color: #FFD700;
-            }
-            
-            .player-rows {
+            .summary-value.gold { color: #FFD700; }
+
+            .team-header {
                 display: flex;
-                flex-direction: column;
-                gap: 2px;
+                padding: 12px 25px;
+                background: #111;
+                border-bottom: 1px solid #222;
             }
-            
+            .team-header .col-name { width: 200px; }
+            .team-header .col { flex: 1; text-align: center; color: #555; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; }
+
             .player-row {
                 display: flex;
                 align-items: center;
-                background: #1A1A1A;
-                padding: 10px 20px;
+                padding: 14px 25px;
+                background: #141414;
+                border-bottom: 1px solid #1a1a1a;
             }
-            
-            .player-info {
+            .player-row.self {
+                background: #1a1a0a;
+                border-left: 3px solid #FFD700;
+            }
+            .player-name-col {
+                width: 200px;
                 display: flex;
                 align-items: center;
-                width: 200px;
                 gap: 10px;
             }
-            
-            .player-level {
-                background: #FFD700;
-                color: black;
-                padding: 2px 6px;
-                border-radius: 2px;
-                font-size: 12px;
-                font-weight: bold;
+            .player-name {
+                font-size: 16px;
+                font-weight: 600;
             }
-            
-            .player-stats {
-                display: flex;
+            .player-stat {
                 flex: 1;
-                justify-content: space-between;
+                text-align: center;
+                font-size: 18px;
+                font-weight: 600;
             }
-            
-            .stat {
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                width: 100px;
-            }
-            
-            .stat-label {
-                color: #666;
-                font-size: 12px;
-                text-transform: uppercase;
-                margin-bottom: 4px;
-            }
-            
-            .stat-value {
-                font-size: 20px;
-                color: white;
-            }
+            .player-stat.kills { color: #ff6b6b; }
         </style>
     </head>
     <body>
-        <div class="map-banner" style="background-image: url('${getMapThumbnailUrl(matchData.data.attributes.mapName)}');">
-            <div class="title">MATCH REPORT</div>
-        </div>
-        <div class="content">
-        <div class="tabs">
-            <div class="tab active">SUMMARY</div>
-            <div class="tab">WEAPONS</div>
-        </div>
-        
-        <div class="match-info">
-            <div class="info-item">
-                <div class="info-label">MAP</div>
-                <div class="info-value">${getMapDisplayName(matchData.data.attributes.mapName)}</div>
-            </div>
-            <div class="info-item">
-                <div class="info-label">GAME MODE</div>
-                <div class="info-value">${matchData.data.attributes.gameMode.toUpperCase()}</div>
-            </div>
-            <div class="info-item">
-                <div class="info-label">PLACEMENT</div>
-                <div class="info-value">#${playerStats.attributes.stats.winPlace} / ${totalParticipants}</div>
-            </div>
-            <div class="info-item">
-                <div class="info-label">PHASES SURVIVED</div>
-                <div class="info-value">${calculatePhasesSurvived(playerStats.attributes.stats)}</div>
-            </div>
-            <div class="info-item">
-                <div class="info-label">SURVIVAL BP EARNED</div>
-                <div class="info-value bp">+150</div>
-            </div>
-        </div>
-        
-        <div class="player-rows">
-            ${teamMembers.map(member => {
-                const stats = member.attributes.stats;
-                return `
-                <div class="player-row">
-                    <div class="player-info">
-                        <div class="player-level">LV.${stats.level || 1}</div>
-                        <div class="player-name">${stats.name}</div>
-                    </div>
-                    <div class="player-stats">
-                        <div class="stat">
-                            <div class="stat-label">KILLS</div>
-                            <div class="stat-value">${stats.kills || 0}</div>
-                        </div>
-                        <div class="stat">
-                            <div class="stat-label">ASSISTS</div>
-                            <div class="stat-value">${stats.assists || 0}</div>
-                        </div>
-                        <div class="stat">
-                            <div class="stat-label">DAMAGE</div>
-                            <div class="stat-value">${Math.round(stats.damageDealt || 0)}</div>
-                        </div>
-                        <div class="stat">
-                            <div class="stat-label">TIME ALIVE</div>
-                            <div class="stat-value">${formatTime(stats.timeSurvived)}</div>
-                        </div>
-                        <div class="stat">
-                            <div class="stat-label">TOP WEAPON</div>
-                            <div class="stat-value">${getTopWeapon(stats)}</div>
-                        </div>
-                    </div>
+        <div class="map-banner" style="background-image: url('${getMapThumbnailUrl(mapName)}');">
+            <div class="banner-content">
+                <div>
+                    <div class="banner-title">MATCH REPORT</div>
+                    <div class="banner-meta">${getMapDisplayName(mapName)} &bull; ${gameMode.toUpperCase()} &bull; ${matchType === 'competitive' ? 'RANKED' : 'NORMAL'}</div>
                 </div>
-                `;
-            }).join('')}
+                <div class="banner-meta">${formatTime(pStats.timeSurvived)} played</div>
+            </div>
         </div>
+
+        <div class="match-summary">
+            <div class="summary-item">
+                <div class="summary-label">Placement</div>
+                <div class="summary-value gold">#${pStats.winPlace} / ${totalParticipants}</div>
+            </div>
+            <div class="summary-item">
+                <div class="summary-label">Kills</div>
+                <div class="summary-value">${pStats.kills}</div>
+            </div>
+            <div class="summary-item">
+                <div class="summary-label">Damage</div>
+                <div class="summary-value">${Math.round(pStats.damageDealt)}</div>
+            </div>
+            <div class="summary-item">
+                <div class="summary-label">Phases Survived</div>
+                <div class="summary-value">${calculatePhasesSurvived(pStats)}</div>
+            </div>
         </div>
+
+        <div class="team-header">
+            <div class="col-name" style="color:#555; font-size:11px; text-transform:uppercase; letter-spacing:1px;">Player</div>
+            <div class="col">Kills</div>
+            <div class="col">Assists</div>
+            <div class="col">Damage</div>
+            <div class="col">Survived</div>
+            <div class="col">Top Weapon</div>
+        </div>
+
+        ${teamMembers.map(member => {
+            const stats = member.attributes.stats;
+            const isSelf = stats.name.toLowerCase() === pStats.name.toLowerCase();
+            return `
+            <div class="player-row${isSelf ? ' self' : ''}">
+                <div class="player-name-col">
+                    <div class="player-name">${stats.name}</div>
+                </div>
+                <div class="player-stat kills">${stats.kills || 0}</div>
+                <div class="player-stat">${stats.assists || 0}</div>
+                <div class="player-stat">${Math.round(stats.damageDealt || 0)}</div>
+                <div class="player-stat">${formatTime(stats.timeSurvived)}</div>
+                <div class="player-stat">${getTopWeapon(stats)}</div>
+            </div>`;
+        }).join('')}
     </body>
-    </html>
-    `;
+    </html>`;
 }
 
 module.exports = {
@@ -248,17 +207,13 @@ module.exports = {
 
         try {
             const username = interaction.options.getString('username');
-            
-            console.log('Getting player data for:', username);
             const playerData = await getPUBGPlayer(username);
-            
-            console.log('Getting match data');
+
             const latestMatchId = playerData.relationships.matches.data[0].id;
             const matchData = await getMatchData(latestMatchId);
 
-            console.log('Finding player stats');
             const playerStats = matchData.included.find(
-                item => item.type === 'participant' && 
+                item => item.type === 'participant' &&
                 item.attributes.stats.name.toLowerCase() === username.toLowerCase()
             );
 
@@ -266,10 +221,9 @@ module.exports = {
                 return await interaction.editReply('No match data found for this player.');
             }
 
-            console.log('Getting team members');
             const teamId = playerStats.attributes.stats.teamId;
             const teamMembers = matchData.included.filter(
-                item => item.type === 'participant' && 
+                item => item.type === 'participant' &&
                 item.attributes.stats.teamId === teamId &&
                 item.attributes.stats.teamId !== 0
             ).sort((a, b) => {
@@ -282,45 +236,32 @@ module.exports = {
                 item => item.type === 'participant'
             ).length;
 
-            console.log('Generating HTML');
             const html = generateMatchReportHTML(matchData, playerStats, teamMembers, totalParticipants);
 
-            console.log('Launching browser');
             browser = await puppeteer.launch({
                 args: ['--no-sandbox', '--disable-setuid-sandbox'],
                 timeout: 30000
             });
 
-            console.log('Creating page');
             const page = await browser.newPage();
-            await page.setViewport({ 
-                width: 1200,
-                height: Math.max(600, 200 + (teamMembers.length * 80))
-            });
+            await page.setViewport({ width: 800, height: 600 });
+            await page.setContent(html, { waitUntil: 'networkidle0', timeout: 10000 });
 
-            console.log('Setting content');
-            await page.setContent(html);
-            
-            console.log('Waiting for selector');
-            await page.waitForSelector('.player-rows', { timeout: 5000 });
-
-            console.log('Taking screenshot');
             const screenshot = await page.screenshot({
                 type: 'png',
-                fullPage: true
+                fullPage: true,
+                omitBackground: false
             });
 
-            console.log('Creating attachment');
-            const attachment = new AttachmentBuilder(Buffer.from(screenshot), { 
+            const attachment = new AttachmentBuilder(Buffer.from(screenshot), {
                 name: 'match-report.png'
             });
 
-            console.log('Sending reply');
             await interaction.editReply({ files: [attachment] });
 
         } catch (error) {
             console.error('Error in match command:', error);
-            await interaction.editReply(`Error: ${error.message}\nStack: ${error.stack}`);
+            await interaction.editReply(`Error: ${error.message}`);
         } finally {
             if (browser) {
                 await browser.close();
