@@ -342,9 +342,15 @@ module.exports = {
             await page.setViewport({ width: 820, height: 600 });
             await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 10000 });
 
+            // Measure actual content height to avoid extra black space
+            const contentHeight = await page.evaluate(() => {
+                const wrapper = document.querySelector('.wrapper');
+                return wrapper ? wrapper.offsetHeight : document.body.scrollHeight;
+            });
+
             const screenshot = await page.screenshot({
                 type: 'png',
-                fullPage: true,
+                clip: { x: 0, y: 0, width: 820, height: contentHeight },
                 omitBackground: false
             });
 
