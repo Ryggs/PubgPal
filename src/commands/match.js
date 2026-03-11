@@ -1,8 +1,8 @@
 const { SlashCommandBuilder, AttachmentBuilder } = require('discord.js');
-const { getPUBGPlayer, getMatchData, getCurrentSeason, getPlayerSeasonStats } = require('../services/pubgApi');
+const { getPUBGPlayer, getMatchData, getCurrentSeason, getPlayerSeasonStats, getSurvivalMastery } = require('../services/pubgApi');
 const puppeteer = require('puppeteer');
 const axios = require('axios');
-const { getMapDisplayName, getRankInsigniaUrl } = require('../utils/assets');
+const { getMapDisplayName, getRankInsigniaUrl, getMapImageUrl } = require('../utils/assets');
 
 const MAX_TEAM_MEMBERS = 4;
 
@@ -27,9 +27,8 @@ function findPlayerRankInfo(rankedStats) {
     return null;
 }
 
-async function fetchInsigniaBase64(tier, subTier) {
+async function fetchImageBase64(url) {
     try {
-        const url = getRankInsigniaUrl(tier, subTier);
         const response = await axios.get(url, {
             responseType: 'arraybuffer',
             timeout: 5000
@@ -40,7 +39,19 @@ async function fetchInsigniaBase64(tier, subTier) {
     }
 }
 
-function generateMatchReportHTML(matchData, playerStats, teamMembers, totalParticipants, rankBadge) {
+function isTDMMode(gameMode) {
+    return gameMode && gameMode.toLowerCase().includes('tdm');
+}
+
+function getSurvivalTierColor(level) {
+    if (level >= 400) return '#e74c3c';  // Red - Tier 5
+    if (level >= 300) return '#9b59b6';  // Purple - Tier 4
+    if (level >= 200) return '#3498db';  // Blue - Tier 3
+    if (level >= 100) return '#2ecc71';  // Green - Tier 2
+    return '#95a5a6';                     // Gray - Tier 1
+}
+
+function generateMatchReportHTML(matchData, playerStats, teamMembers, totalParticipants, rankBadge, mapImageBase64, survivalLevel) {
     const mapName = matchData.data.attributes.mapName;
     const gameMode = matchData.data.attributes.gameMode || 'squad';
     const matchType = matchData.data.attributes.matchType;
@@ -49,6 +60,12 @@ function generateMatchReportHTML(matchData, playerStats, teamMembers, totalParti
     const perspective = gameMode.toLowerCase().includes('fpp') ? 'FPP' : 'TPP';
     const modeBase = gameMode.replace(/-?fpp/i, '').replace(/-?tpp/i, '').toUpperCase() || 'SQUAD';
     const matchTypeLabel = matchType === 'competitive' ? 'RANKED' : 'NORMAL';
+
+    const mapBgStyle = mapImageBase64
+        ? `background-image: linear-gradient(rgba(10,10,10,0.7), rgba(10,10,10,0.75)), url('${mapImageBase64}');
+           background-size: cover;
+           background-position: center;`
+        : 'background: #141414;';
 
     return `
     <!DOCTYPE html>
@@ -62,13 +79,18 @@ function generateMatchReportHTML(matchData, playerStats, teamMembers, totalParti
                 background: #0d0d0d;
                 font-family: 'Rajdhani', Arial, sans-serif;
                 color: white;
+                display: inline-block;
+            }
+            .wrapper {
+                display: inline-block;
+                width: 820px;
             }
 
             /* ── Summary bar ── */
             .summary-bar {
                 display: flex;
                 align-items: center;
-                background: #141414;
+                ${mapBgStyle}
                 padding: 16px 30px;
                 border-bottom: 1px solid #222;
             }
@@ -76,15 +98,17 @@ function generateMatchReportHTML(matchData, playerStats, teamMembers, totalParti
             .summary-item:last-child { text-align: right; }
             .summary-label {
                 font-size: 10px;
-                color: #555;
+                color: #888;
                 text-transform: uppercase;
                 letter-spacing: 2px;
                 margin-bottom: 2px;
+                text-shadow: 0 1px 3px rgba(0,0,0,0.8);
             }
             .summary-value {
                 font-size: 24px;
                 font-weight: 700;
                 letter-spacing: 1px;
+                text-shadow: 0 1px 4px rgba(0,0,0,0.9);
             }
             .summary-value.gold { color: #FFD700; }
 
@@ -126,6 +150,9 @@ function generateMatchReportHTML(matchData, playerStats, teamMembers, totalParti
             .player-row:nth-child(even) {
                 background: #121212;
             }
+            .player-row:last-child {
+                border-bottom: none;
+            }
 
             .player-name-area {
                 width: 260px;
@@ -138,6 +165,18 @@ function generateMatchReportHTML(matchData, playerStats, teamMembers, totalParti
                 height: 32px;
                 object-fit: contain;
                 flex-shrink: 0;
+            }
+            .level-badge {
+                width: 28px;
+                height: 28px;
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 11px;
+                font-weight: 700;
+                flex-shrink: 0;
+                border: 2px solid;
             }
             .player-name {
                 font-size: 16px;
@@ -158,49 +197,55 @@ function generateMatchReportHTML(matchData, playerStats, teamMembers, totalParti
         </style>
     </head>
     <body>
-        <div class="summary-bar">
-            <div class="summary-item">
-                <div class="summary-label">Placement</div>
-                <div class="summary-value gold">#${pStats.winPlace} / ${totalParticipants}</div>
-            </div>
-            <div class="summary-item">
-                <div class="summary-label">Map</div>
-                <div class="summary-value">${getMapDisplayName(mapName)}</div>
-            </div>
-            <div class="summary-item">
-                <div class="summary-label">Match Type</div>
-                <div class="summary-value">${matchTypeLabel} | ${modeBase} ${perspective}</div>
-            </div>
-            <div class="summary-item">
-                <div class="summary-label">Play Time</div>
-                <div class="summary-value">${formatTime(pStats.timeSurvived)}</div>
-            </div>
-        </div>
-
-        <div class="col-headers">
-            <div class="col-name-header">Name</div>
-            <div class="col-header">Kills</div>
-            <div class="col-header">Damage</div>
-            <div class="col-header">Assists</div>
-            <div class="col-header">Revives</div>
-            <div class="col-header">Time Alive</div>
-        </div>
-
-        ${teamMembers.map(member => {
-            const s = member.attributes.stats;
-            return `
-            <div class="player-row">
-                <div class="player-name-area">
-                    ${rankBadge ? `<img class="rank-badge" src="${rankBadge}"/>` : ''}
-                    <div class="player-name">${s.name}</div>
+        <div class="wrapper">
+            <div class="summary-bar">
+                <div class="summary-item">
+                    <div class="summary-label">Placement</div>
+                    <div class="summary-value gold">#${pStats.winPlace} / ${totalParticipants}</div>
                 </div>
-                <div class="player-stat">${s.kills || 0}</div>
-                <div class="player-stat dmg">${Math.round(s.damageDealt || 0)}</div>
-                <div class="player-stat">${s.assists || 0}</div>
-                <div class="player-stat">${s.revives || 0}</div>
-                <div class="player-stat">${formatTime(s.timeSurvived)}</div>
-            </div>`;
-        }).join('')}
+                <div class="summary-item">
+                    <div class="summary-label">Map</div>
+                    <div class="summary-value">${getMapDisplayName(mapName)}</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-label">Match Type</div>
+                    <div class="summary-value">${matchTypeLabel} | ${modeBase} ${perspective}</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-label">Play Time</div>
+                    <div class="summary-value">${formatTime(pStats.timeSurvived)}</div>
+                </div>
+            </div>
+
+            <div class="col-headers">
+                <div class="col-name-header">Name</div>
+                <div class="col-header">Kills</div>
+                <div class="col-header">Damage</div>
+                <div class="col-header">Assists</div>
+                <div class="col-header">Revives</div>
+                <div class="col-header">Time Alive</div>
+            </div>
+
+            ${teamMembers.map(member => {
+                const s = member.attributes.stats;
+                const levelBadge = survivalLevel != null
+                    ? `<div class="level-badge" style="border-color: ${getSurvivalTierColor(survivalLevel)}; color: ${getSurvivalTierColor(survivalLevel)};">${survivalLevel}</div>`
+                    : '';
+                return `
+                <div class="player-row">
+                    <div class="player-name-area">
+                        ${rankBadge ? `<img class="rank-badge" src="${rankBadge}"/>` : ''}
+                        ${levelBadge}
+                        <div class="player-name">${s.name}</div>
+                    </div>
+                    <div class="player-stat">${s.kills || 0}</div>
+                    <div class="player-stat dmg">${Math.round(s.damageDealt || 0)}</div>
+                    <div class="player-stat">${s.assists || 0}</div>
+                    <div class="player-stat">${s.revives || 0}</div>
+                    <div class="player-stat">${formatTime(s.timeSurvived)}</div>
+                </div>`;
+            }).join('')}
+        </div>
     </body>
     </html>`;
 }
@@ -235,8 +280,11 @@ module.exports = {
                 return await interaction.editReply('No match data found for this player.');
             }
 
+            const gameMode = matchData.data.attributes.gameMode || '';
             const teamId = playerStats.attributes.stats.teamId;
-            const teamMembers = matchData.included.filter(
+            const isTDM = isTDMMode(gameMode);
+
+            let teamMembers = matchData.included.filter(
                 item => item.type === 'participant' &&
                 item.attributes.stats.teamId === teamId &&
                 item.attributes.stats.teamId !== 0
@@ -244,27 +292,46 @@ module.exports = {
                 const killsDiff = b.attributes.stats.kills - a.attributes.stats.kills;
                 if (killsDiff !== 0) return killsDiff;
                 return b.attributes.stats.damageDealt - a.attributes.stats.damageDealt;
-            }).slice(0, MAX_TEAM_MEMBERS);
+            });
+
+            // Limit team members to 4 for non-TDM modes
+            if (!isTDM) {
+                teamMembers = teamMembers.slice(0, MAX_TEAM_MEMBERS);
+            }
 
             const totalParticipants = matchData.included.filter(
                 item => item.type === 'participant'
             ).length;
 
-            // Fetch player's ranked tier badge (non-blocking)
+            // Fetch player's ranked tier badge and survival level (non-blocking, parallel)
             let rankBadge = '';
-            try {
-                const season = await getCurrentSeason();
-                const seasonStats = await getPlayerSeasonStats(playerData.id, season.id);
-                const rankedStats = seasonStats.data?.attributes?.rankedGameModeStats;
-                const tierInfo = findPlayerRankInfo(rankedStats);
-                if (tierInfo) {
-                    rankBadge = await fetchInsigniaBase64(tierInfo.tier, tierInfo.subTier);
-                }
-            } catch (err) {
-                console.warn('Could not fetch rank badge:', err.message);
+            let mapImageBase64 = '';
+            let survivalLevel = null;
+
+            const mapName = matchData.data.attributes.mapName;
+
+            const [rankResult, mapResult, masteryResult] = await Promise.allSettled([
+                (async () => {
+                    const season = await getCurrentSeason();
+                    const seasonStats = await getPlayerSeasonStats(playerData.id, season.id);
+                    const rankedStats = seasonStats.data?.attributes?.rankedGameModeStats;
+                    const tierInfo = findPlayerRankInfo(rankedStats);
+                    if (tierInfo) {
+                        return await fetchImageBase64(getRankInsigniaUrl(tierInfo.tier, tierInfo.subTier));
+                    }
+                    return '';
+                })(),
+                fetchImageBase64(getMapImageUrl(mapName)),
+                getSurvivalMastery(playerData.id)
+            ]);
+
+            if (rankResult.status === 'fulfilled') rankBadge = rankResult.value;
+            if (mapResult.status === 'fulfilled') mapImageBase64 = mapResult.value;
+            if (masteryResult.status === 'fulfilled' && masteryResult.value) {
+                survivalLevel = masteryResult.value.data?.attributes?.level ?? null;
             }
 
-            const html = generateMatchReportHTML(matchData, playerStats, teamMembers, totalParticipants, rankBadge);
+            const html = generateMatchReportHTML(matchData, playerStats, teamMembers, totalParticipants, rankBadge, mapImageBase64, survivalLevel);
 
             browser = await puppeteer.launch({
                 args: ['--no-sandbox', '--disable-setuid-sandbox'],

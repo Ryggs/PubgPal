@@ -148,6 +148,27 @@ async function getPlayerAccountStats(playerId, seasonId) {
     }
 }
 
+async function getSurvivalMastery(playerId) {
+    const cacheKey = `survival-mastery:${playerId}`;
+    const cached = cache.get(cacheKey);
+    if (cached) return cached;
+
+    try {
+        const response = await axios.get(
+            `${PUBG_API_URL}/players/${playerId}/survival_mastery`,
+            { headers: API_HEADERS }
+        );
+        const data = response.data;
+        cache.set(cacheKey, data, CACHE_TTL.PLAYER);
+        return data;
+    } catch (error) {
+        if (error.response && error.response.status === 429) {
+            throw new Error('Rate limit exceeded. Please try again later.');
+        }
+        return null;
+    }
+}
+
 // Start periodic cache cleanup
 cache.startCleanup();
 
@@ -156,5 +177,6 @@ module.exports = {
     getMatchData,
     getCurrentSeason,
     getPlayerSeasonStats,
-    getPlayerAccountStats
+    getPlayerAccountStats,
+    getSurvivalMastery
 };
