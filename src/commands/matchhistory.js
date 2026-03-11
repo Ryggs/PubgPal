@@ -100,20 +100,20 @@ function generateMatchHistoryHTML(matches, mapImages) {
                 color: rgba(255,255,255,0.5);
             }
             .map-name {
-                font-size: 13px;
+                font-size: 12px;
                 font-weight: 600;
-                color: rgba(255,255,255,0.75);
+                color: #888;
                 text-transform: uppercase;
-                letter-spacing: 1.5px;
+                letter-spacing: 1px;
                 margin-top: 2px;
             }
             .time-ago {
                 font-size: 11px;
                 font-weight: 500;
-                color: rgba(255,255,255,0.4);
+                color: #555;
                 text-transform: uppercase;
-                letter-spacing: 1px;
-                margin-top: 3px;
+                letter-spacing: 0.5px;
+                margin-top: 2px;
             }
 
             .win-bar {
@@ -184,12 +184,12 @@ function generateMatchHistoryHTML(matches, mapImages) {
                             <span class="placement-number">#${stats.winPlace}</span>
                             <span class="placement-total">/${totalPlayers}</span>
                         </div>
-                        <div class="map-name">${getMapDisplayName(matchInfo.mapName)}</div>
-                        <div class="time-ago">${getTimeSinceMatch(new Date(matchInfo.createdAt))}</div>
                     </div>
                 </div>
                 <div class="match-info">
                     <div class="mode">${matchInfo.gameMode ? matchInfo.gameMode.toUpperCase() : 'SQUAD TPP'}</div>
+                    <div class="map-name">${getMapDisplayName(matchInfo.mapName)}</div>
+                    <div class="time-ago">${getTimeSinceMatch(new Date(matchInfo.createdAt))}</div>
                 </div>
                 <div class="stats">
                     <div class="stat">
