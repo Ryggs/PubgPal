@@ -1,42 +1,7 @@
-const MAP_ASSETS = {
-    // Full map images
-    'Baltic_Main': 'https://raw.githubusercontent.com/pubg/api-assets/master/Assets/Maps/Baltic_Main.png',
-    'Desert_Main': 'https://raw.githubusercontent.com/pubg/api-assets/master/Assets/Maps/Desert_Main.png',
-    'Range_Main': 'https://raw.githubusercontent.com/pubg/api-assets/master/Assets/Maps/Range_Main.png',
-    'Savage_Main': 'https://raw.githubusercontent.com/pubg/api-assets/master/Assets/Maps/Savage_Main.png',
-    'Kiki_Main': 'https://raw.githubusercontent.com/pubg/api-assets/master/Assets/Maps/Kiki_Main.png',
-    'Tiger_Main': 'https://raw.githubusercontent.com/pubg/api-assets/master/Assets/Maps/Tiger_Main.png',
-
-    // Map thumbnails (for match history)
-    'Baltic_Main_Thumbnail': 'https://raw.githubusercontent.com/pubg/api-assets/master/Assets/Maps/Thumbnails/Baltic_Main_Thumbnail.png',
-    'Desert_Main_Thumbnail': 'https://raw.githubusercontent.com/pubg/api-assets/master/Assets/Maps/Thumbnails/Desert_Main_Thumbnail.png',
-    'Range_Main_Thumbnail': 'https://raw.githubusercontent.com/pubg/api-assets/master/Assets/Maps/Thumbnails/Range_Main_Thumbnail.png',
-    'Savage_Main_Thumbnail': 'https://raw.githubusercontent.com/pubg/api-assets/master/Assets/Maps/Thumbnails/Savage_Main_Thumbnail.png',
-    'Kiki_Main_Thumbnail': 'https://raw.githubusercontent.com/pubg/api-assets/master/Assets/Maps/Thumbnails/Kiki_Main_Thumbnail.png',
-    'Tiger_Main_Thumbnail': 'https://raw.githubusercontent.com/pubg/api-assets/master/Assets/Maps/Thumbnails/Tiger_Main_Thumbnail.png'
-};
-
 const { SlashCommandBuilder, AttachmentBuilder } = require('discord.js');
 const { getPUBGPlayer, getMatchData } = require('../services/pubgApi');
+const { getMapThumbnailUrl, getMapDisplayName } = require('../utils/assets');
 const puppeteer = require('puppeteer');
-
-function getGameMode(type) {
-    switch(type?.toLowerCase()) {
-        case 'airoyale': return 'AIR ROYALE';
-        case 'arcade': return 'ARCADE';
-        case 'official': return 'NORMAL';
-        default: return 'CASUAL';
-    }
-}
-function getMapBackgroundUrl(mapName) {
-        // First try to get the thumbnail version
-        const thumbnailKey = `${mapName}_Thumbnail`;
-        if (MAP_ASSETS[thumbnailKey]) {
-            return MAP_ASSETS[thumbnailKey];
-        }
-        // Fall back to full map if thumbnail not found
-        return MAP_ASSETS[mapName] || '';
-}
 
 function generateMatchHistoryHTML(matches) {
     return `
@@ -50,14 +15,26 @@ function generateMatchHistoryHTML(matches) {
                 background: #1A1A1A; 
                 font-family: Arial, sans-serif;
             }
-            .row { 
-                display: flex; 
-                height: 100px; 
+            .row {
+                display: flex;
+                height: 100px;
                 background: #2A2A2A;
+                background-size: cover;
+                background-position: center;
                 color: white;
                 align-items: center;
                 margin-bottom: 2px;
                 position: relative;
+            }
+            .row::before {
+                content: '';
+                position: absolute;
+                inset: 0;
+                background: rgba(0,0,0,0.55);
+            }
+            .row > * {
+                position: relative;
+                z-index: 1;
             }
             .win-indicator {
                 position: absolute;
@@ -131,18 +108,23 @@ function generateMatchHistoryHTML(matches) {
             const matchInfo = match.matchData.data.attributes;
             const isWin = stats.winPlace === 1;
 
+            const mapBg = getMapThumbnailUrl(matchInfo.mapName);
+            const totalPlayers = match.matchData.included
+                ? match.matchData.included.filter(i => i.type === 'participant').length
+                : 64;
+
             return `
-            <div class="row">
+            <div class="row" style="background-image: url('${mapBg}');">
                 ${isWin ? '<div class="win-indicator"></div>' : ''}
                 <div class="placement">
                     <span class="placement-number">#${stats.winPlace}</span>
-                    <span class="placement-total">/64</span>
+                    <span class="placement-total">/${totalPlayers}</span>
                 </div>
                 <div class="match-info">
                     <div class="time-ago">${getTimeSinceMatch(new Date(matchInfo.createdAt))}</div>
-                    <div class="mode">${matchInfo.matchType === 'competitive' ? 'NORMAL' : 'CASUAL MODE'}</div>
+                    <div class="mode">${matchInfo.matchType === 'competitive' ? 'RANKED' : 'NORMAL'} | ${getMapDisplayName(matchInfo.mapName)}</div>
                 </div>
-                <div class="game-type">SQUAD TPP</div>
+                <div class="game-type">${matchInfo.gameMode ? matchInfo.gameMode.toUpperCase() : 'SQUAD TPP'}</div>
                 <div class="stats">
                     <div class="stat">
                         <div class="stat-value">${stats.kills}</div>
@@ -165,10 +147,6 @@ function generateMatchHistoryHTML(matches) {
         }).join('')}
     </body>
     </html>`;
-}
-
-function getMapBackground(mapName) {
-    return '/api/placeolder/1200/100';
 }
 
 function formatTime(seconds) {

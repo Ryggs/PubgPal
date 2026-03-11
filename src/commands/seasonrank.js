@@ -47,14 +47,10 @@ function generateSeasonRankSVG(seasonStats, currentSeason) {
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 800">
         <defs>
             <style>
-                @font-face {
-                    font-family: 'PUBGFont';
-                    src: url('/assets/fonts/pubg-font.ttf');
-                }
-                .title { font-family: 'PUBGFont', sans-serif; font-size: 32px; }
-                .stat-label { font-family: 'PUBGFont', sans-serif; font-size: 16px; }
-                .stat-value { font-family: 'PUBGFont', sans-serif; font-size: 24px; }
-                .medal-count { font-family: 'PUBGFont', sans-serif; font-size: 28px; }
+                .title { font-family: Arial, Helvetica, sans-serif; font-size: 32px; font-weight: bold; letter-spacing: 2px; }
+                .stat-label { font-family: Arial, Helvetica, sans-serif; font-size: 16px; }
+                .stat-value { font-family: Arial, Helvetica, sans-serif; font-size: 24px; font-weight: bold; }
+                .medal-count { font-family: Arial, Helvetica, sans-serif; font-size: 28px; font-weight: bold; }
             </style>
 
             <!-- Medal patterns and gradients -->

@@ -2,16 +2,7 @@ const { SlashCommandBuilder, AttachmentBuilder } = require('discord.js');
 const { getPUBGPlayer, getMatchData } = require('../services/pubgApi');
 const puppeteer = require('puppeteer');
 const { getTopWeapon } = require('../utils/weaponAnalysis');
-
-// Map name translations
-const MAP_NAMES = {
-    'Baltic_Main': 'ERANGEL',
-    'Desert_Main': 'MIRAMAR',
-    'Range_Main': 'SANHOK',
-    'Savage_Main': 'VIKENDI',
-    'Kiki_Main': 'DESTON',
-    'Tiger_Main': 'TAEGO'
-};
+const { getMapDisplayName, getMapThumbnailUrl } = require('../utils/assets');
 
 function calculatePhasesSurvived(stats) {
     if (!stats || !stats.timeSurvived) return 0;
@@ -31,18 +22,39 @@ function generateMatchReportHTML(matchData, playerStats, teamMembers, totalParti
     <html>
     <head>
         <style>
-            body { 
-                margin: 0; 
-                padding: 20px; 
-                background: #0A0A0A; 
+            body {
+                margin: 0;
+                padding: 0;
+                background: #0A0A0A;
                 font-family: 'Arial', sans-serif;
                 color: white;
             }
-            
+
+            .map-banner {
+                height: 120px;
+                background-size: cover;
+                background-position: center;
+                position: relative;
+                display: flex;
+                align-items: flex-end;
+                padding: 15px 20px;
+            }
+            .map-banner::before {
+                content: '';
+                position: absolute;
+                inset: 0;
+                background: linear-gradient(transparent 30%, rgba(10,10,10,0.85));
+            }
+
             .title {
                 font-size: 32px;
                 font-weight: bold;
                 margin-bottom: 20px;
+                position: relative;
+            }
+
+            .content {
+                padding: 20px;
             }
             
             .tabs {
@@ -147,8 +159,10 @@ function generateMatchReportHTML(matchData, playerStats, teamMembers, totalParti
         </style>
     </head>
     <body>
-        <div class="title">MATCH REPORT</div>
-        
+        <div class="map-banner" style="background-image: url('${getMapThumbnailUrl(matchData.data.attributes.mapName)}');">
+            <div class="title">MATCH REPORT</div>
+        </div>
+        <div class="content">
         <div class="tabs">
             <div class="tab active">SUMMARY</div>
             <div class="tab">WEAPONS</div>
@@ -157,7 +171,7 @@ function generateMatchReportHTML(matchData, playerStats, teamMembers, totalParti
         <div class="match-info">
             <div class="info-item">
                 <div class="info-label">MAP</div>
-                <div class="info-value">${MAP_NAMES[matchData.data.attributes.mapName] || matchData.data.attributes.mapName}</div>
+                <div class="info-value">${getMapDisplayName(matchData.data.attributes.mapName)}</div>
             </div>
             <div class="info-item">
                 <div class="info-label">GAME MODE</div>
@@ -211,6 +225,7 @@ function generateMatchReportHTML(matchData, playerStats, teamMembers, totalParti
                 </div>
                 `;
             }).join('')}
+        </div>
         </div>
     </body>
     </html>
