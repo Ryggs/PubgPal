@@ -2,8 +2,33 @@ const { SlashCommandBuilder, AttachmentBuilder } = require('discord.js');
 const { getPUBGPlayer, getMatchData } = require('../services/pubgApi');
 const { getMapThumbnailUrl, getMapDisplayName } = require('../utils/assets');
 const puppeteer = require('puppeteer');
+const axios = require('axios');
 
-function generateMatchHistoryHTML(matches) {
+// Pre-fetch map images and return a mapName -> base64 data URI lookup
+async function fetchMapImages(matches) {
+    const uniqueMaps = [...new Set(
+        matches.map(m => m.matchData.data.attributes.mapName)
+    )];
+
+    const imageMap = {};
+    await Promise.all(uniqueMaps.map(async (mapName) => {
+        try {
+            const url = getMapThumbnailUrl(mapName);
+            const response = await axios.get(url, {
+                responseType: 'arraybuffer',
+                timeout: 8000
+            });
+            const base64 = Buffer.from(response.data).toString('base64');
+            imageMap[mapName] = `data:image/png;base64,${base64}`;
+        } catch (err) {
+            console.warn(`Failed to fetch map image for ${mapName}:`, err.message);
+            imageMap[mapName] = '';
+        }
+    }));
+    return imageMap;
+}
+
+function generateMatchHistoryHTML(matches, mapImages) {
     return `
     <!DOCTYPE html>
     <html>
@@ -26,21 +51,27 @@ function generateMatchHistoryHTML(matches) {
                 background: #1a1a1a;
             }
 
-            /* Map image area — covers placement + map name zone */
+            /* Map image area — placement + map name + time on top of image */
             .map-area {
-                width: 230px;
+                width: 280px;
                 height: 100%;
                 position: relative;
                 overflow: hidden;
                 flex-shrink: 0;
                 background-size: cover;
                 background-position: center;
+                background-color: #222;
             }
             .map-area::before {
                 content: '';
                 position: absolute;
                 inset: 0;
-                background: linear-gradient(to right, rgba(0,0,0,0.35), rgba(0,0,0,0.7));
+                background: linear-gradient(
+                    to right,
+                    rgba(0,0,0,0.3) 0%,
+                    rgba(0,0,0,0.6) 70%,
+                    rgba(26,26,26,1) 100%
+                );
             }
             .map-area-content {
                 position: relative;
@@ -71,10 +102,18 @@ function generateMatchHistoryHTML(matches) {
             .map-name {
                 font-size: 13px;
                 font-weight: 600;
-                color: rgba(255,255,255,0.7);
+                color: rgba(255,255,255,0.75);
                 text-transform: uppercase;
                 letter-spacing: 1.5px;
                 margin-top: 2px;
+            }
+            .time-ago {
+                font-size: 11px;
+                font-weight: 500;
+                color: rgba(255,255,255,0.4);
+                text-transform: uppercase;
+                letter-spacing: 1px;
+                margin-top: 3px;
             }
 
             .win-bar {
@@ -88,19 +127,12 @@ function generateMatchHistoryHTML(matches) {
             }
 
             .match-info {
-                width: 170px;
+                width: 130px;
                 padding: 0 15px;
                 flex-shrink: 0;
             }
-            .time-ago {
-                color: #555;
-                font-size: 12px;
-                text-transform: uppercase;
-                letter-spacing: 1px;
-                margin-bottom: 3px;
-            }
             .mode {
-                font-size: 15px;
+                font-size: 16px;
                 font-weight: 600;
                 text-transform: uppercase;
                 letter-spacing: 0.5px;
@@ -138,7 +170,7 @@ function generateMatchHistoryHTML(matches) {
             const stats = match.playerStats.attributes.stats;
             const matchInfo = match.matchData.data.attributes;
             const isWin = stats.winPlace === 1;
-            const mapBg = getMapThumbnailUrl(matchInfo.mapName);
+            const mapImg = mapImages[matchInfo.mapName] || '';
             const totalPlayers = match.matchData.included
                 ? match.matchData.included.filter(i => i.type === 'participant').length
                 : 64;
@@ -146,17 +178,17 @@ function generateMatchHistoryHTML(matches) {
             return `
             <div class="row">
                 ${isWin ? '<div class="win-bar"></div>' : ''}
-                <div class="map-area" style="background-image: url('${mapBg}');">
+                <div class="map-area" style="${mapImg ? `background-image: url('${mapImg}');` : ''}">
                     <div class="map-area-content">
                         <div class="placement-line">
                             <span class="placement-number">#${stats.winPlace}</span>
                             <span class="placement-total">/${totalPlayers}</span>
                         </div>
                         <div class="map-name">${getMapDisplayName(matchInfo.mapName)}</div>
+                        <div class="time-ago">${getTimeSinceMatch(new Date(matchInfo.createdAt))}</div>
                     </div>
                 </div>
                 <div class="match-info">
-                    <div class="time-ago">${getTimeSinceMatch(new Date(matchInfo.createdAt))}</div>
                     <div class="mode">${matchInfo.gameMode ? matchInfo.gameMode.toUpperCase() : 'SQUAD TPP'}</div>
                 </div>
                 <div class="stats">
@@ -245,7 +277,10 @@ module.exports = {
                 })
             );
 
-            const html = generateMatchHistoryHTML(matches);
+            // Pre-fetch map images as base64 so Puppeteer can render them
+            const mapImages = await fetchMapImages(matches);
+
+            const html = generateMatchHistoryHTML(matches, mapImages);
 
             browser = await puppeteer.launch({
                 args: ['--no-sandbox', '--disable-setuid-sandbox'],
@@ -260,7 +295,7 @@ module.exports = {
                 height: matches.length * 92 + 10
             });
 
-            await page.setContent(html, { waitUntil: 'networkidle0', timeout: 10000 });
+            await page.setContent(html, { waitUntil: 'networkidle0', timeout: 15000 });
 
             const screenshot = await Promise.race([
                 page.screenshot({
