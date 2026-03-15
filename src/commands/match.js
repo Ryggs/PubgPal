@@ -1,22 +1,13 @@
 const { SlashCommandBuilder, AttachmentBuilder } = require('discord.js');
-const { getPUBGPlayer, getMatchData } = require('../services/pubgApi');
+const { getPUBGPlayer, getMatchData, getCurrentSeason, getPlayerSeasonStats, getSurvivalMastery } = require('../services/pubgApi');
 const puppeteer = require('puppeteer');
-const { getTopWeapon } = require('./weaponAnalysis');
+const axios = require('axios');
+const { getMapDisplayName, getRankInsigniaUrl, getMapImageUrl } = require('../utils/assets');
 
-// Map name translations
-const MAP_NAMES = {
-    'Baltic_Main': 'ERANGEL',
-    'Desert_Main': 'MIRAMAR',
-    'Range_Main': 'SANHOK',
-    'Savage_Main': 'VIKENDI',
-    'Kiki_Main': 'DESTON',
-    'Tiger_Main': 'TAEGO'
-};
+const MAX_TEAM_MEMBERS = 4;
 
-function calculatePhasesSurvived(stats) {
-    if (!stats || !stats.timeSurvived) return 0;
-    return Math.floor(stats.timeSurvived / 300); // Assuming each phase is roughly 5 minutes
-}
+// Preferred mode order for finding ranked stats
+const MODE_PRIORITY = ['squad-fpp', 'squad', 'duo-fpp', 'duo', 'solo-fpp', 'solo'];
 
 function formatTime(seconds) {
     if (!seconds) return '00:00';
@@ -25,196 +16,238 @@ function formatTime(seconds) {
     return `${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
 }
 
-function generateMatchReportHTML(matchData, playerStats, teamMembers, totalParticipants) {
+function findPlayerRankInfo(rankedStats) {
+    if (!rankedStats) return null;
+    for (const mode of MODE_PRIORITY) {
+        const stats = rankedStats[mode];
+        if (stats && stats.currentTier && stats.currentTier.tier !== 'Unranked') {
+            return stats.currentTier;
+        }
+    }
+    return null;
+}
+
+async function fetchImageBase64(url) {
+    try {
+        const response = await axios.get(url, {
+            responseType: 'arraybuffer',
+            timeout: 5000
+        });
+        return `data:image/png;base64,${Buffer.from(response.data).toString('base64')}`;
+    } catch {
+        return '';
+    }
+}
+
+function isTDMMode(gameMode) {
+    return gameMode && gameMode.toLowerCase().includes('tdm');
+}
+
+function getSurvivalTierColor(level) {
+    if (level >= 400) return '#e74c3c';  // Red - Tier 5
+    if (level >= 300) return '#9b59b6';  // Purple - Tier 4
+    if (level >= 200) return '#3498db';  // Blue - Tier 3
+    if (level >= 100) return '#2ecc71';  // Green - Tier 2
+    return '#95a5a6';                     // Gray - Tier 1
+}
+
+function generateMatchReportHTML(matchData, playerStats, teamMembers, totalParticipants, rankBadge, mapImageBase64, survivalLevel) {
+    const mapName = matchData.data.attributes.mapName;
+    const gameMode = matchData.data.attributes.gameMode || 'squad';
+    const matchType = matchData.data.attributes.matchType;
+    const pStats = playerStats.attributes.stats;
+
+    const perspective = gameMode.toLowerCase().includes('fpp') ? 'FPP' : 'TPP';
+    const modeBase = gameMode.replace(/-?fpp/i, '').replace(/-?tpp/i, '').toUpperCase() || 'SQUAD';
+    const matchTypeLabel = matchType === 'competitive' ? 'RANKED' : 'NORMAL';
+
+    const mapBgStyle = mapImageBase64
+        ? `background-image: linear-gradient(rgba(10,10,10,0.7), rgba(10,10,10,0.75)), url('${mapImageBase64}');
+           background-size: cover;
+           background-position: center;`
+        : 'background: #141414;';
+
     return `
     <!DOCTYPE html>
     <html>
     <head>
+        <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet">
         <style>
-            body { 
-                margin: 0; 
-                padding: 20px; 
-                background: #0A0A0A; 
-                font-family: 'Arial', sans-serif;
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body {
+                width: 820px;
+                background: #0d0d0d;
+                font-family: 'Rajdhani', Arial, sans-serif;
                 color: white;
+                display: inline-block;
             }
-            
-            .title {
-                font-size: 32px;
-                font-weight: bold;
-                margin-bottom: 20px;
+            .wrapper {
+                display: inline-block;
+                width: 820px;
             }
-            
-            .tabs {
+
+            /* ── Summary bar ── */
+            .summary-bar {
                 display: flex;
-                gap: 2px;
-                margin-bottom: 20px;
+                align-items: center;
+                ${mapBgStyle}
+                padding: 16px 30px;
+                border-bottom: 1px solid #222;
             }
-            
-            .tab {
-                padding: 8px 20px;
-                background: #1A1A1A;
-                cursor: pointer;
-            }
-            
-            .tab.active {
-                background: #2A2A2A;
-            }
-            
-            .match-info {
-                display: grid;
-                grid-template-columns: repeat(5, 1fr);
-                gap: 20px;
-                margin-bottom: 30px;
-                background: #1A1A1A;
-                padding: 20px;
-            }
-            
-            .info-item {
-                display: flex;
-                flex-direction: column;
-            }
-            
-            .info-label {
-                color: #666;
-                font-size: 14px;
+            .summary-item { flex: 1; }
+            .summary-item:last-child { text-align: right; }
+            .summary-label {
+                font-size: 10px;
+                color: #888;
                 text-transform: uppercase;
-                margin-bottom: 5px;
+                letter-spacing: 2px;
+                margin-bottom: 2px;
+                text-shadow: 0 1px 3px rgba(0,0,0,0.8);
             }
-            
-            .info-value {
+            .summary-value {
                 font-size: 24px;
-                color: white;
+                font-weight: 700;
+                letter-spacing: 1px;
+                text-shadow: 0 1px 4px rgba(0,0,0,0.9);
             }
-            
-            .info-value.bp {
-                color: #FFD700;
-            }
-            
-            .player-rows {
+            .summary-value.gold { color: #FFD700; }
+
+            /* ── Column headers ── */
+            .col-headers {
                 display: flex;
-                flex-direction: column;
-                gap: 2px;
+                align-items: center;
+                padding: 10px 30px;
+                background: #0d0d0d;
+                border-bottom: 1px solid #1a1a1a;
             }
-            
+            .col-name-header {
+                width: 260px;
+                font-size: 11px;
+                color: #444;
+                text-transform: uppercase;
+                letter-spacing: 2px;
+                font-weight: 600;
+            }
+            .col-header {
+                flex: 1;
+                text-align: center;
+                font-size: 11px;
+                color: #444;
+                text-transform: uppercase;
+                letter-spacing: 2px;
+                font-weight: 600;
+            }
+
+            /* ── Player rows ── */
             .player-row {
                 display: flex;
                 align-items: center;
-                background: #1A1A1A;
-                padding: 10px 20px;
+                padding: 0 30px;
+                height: 58px;
+                background: #141414;
+                border-bottom: 1px solid #1a1a1a;
             }
-            
-            .player-info {
+            .player-row:nth-child(even) {
+                background: #121212;
+            }
+            .player-row:last-child {
+                border-bottom: none;
+            }
+
+            .player-name-area {
+                width: 260px;
                 display: flex;
                 align-items: center;
-                width: 200px;
                 gap: 10px;
             }
-            
-            .player-level {
-                background: #FFD700;
-                color: black;
-                padding: 2px 6px;
-                border-radius: 2px;
-                font-size: 12px;
-                font-weight: bold;
+            .rank-badge {
+                width: 32px;
+                height: 32px;
+                object-fit: contain;
+                flex-shrink: 0;
             }
-            
-            .player-stats {
+            .level-badge {
+                width: 28px;
+                height: 28px;
+                border-radius: 50%;
                 display: flex;
-                flex: 1;
-                justify-content: space-between;
-            }
-            
-            .stat {
-                display: flex;
-                flex-direction: column;
                 align-items: center;
-                width: 100px;
+                justify-content: center;
+                font-size: 11px;
+                font-weight: 700;
+                flex-shrink: 0;
+                border: 2px solid;
             }
-            
-            .stat-label {
-                color: #666;
-                font-size: 12px;
-                text-transform: uppercase;
-                margin-bottom: 4px;
+            .player-name {
+                font-size: 16px;
+                font-weight: 700;
+                letter-spacing: 0.5px;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
             }
-            
-            .stat-value {
-                font-size: 20px;
-                color: white;
+
+            .player-stat {
+                flex: 1;
+                text-align: center;
+                font-size: 18px;
+                font-weight: 600;
             }
+            .player-stat.dmg { color: #FFD700; }
         </style>
     </head>
     <body>
-        <div class="title">MATCH REPORT</div>
-        
-        <div class="tabs">
-            <div class="tab active">SUMMARY</div>
-            <div class="tab">WEAPONS</div>
-        </div>
-        
-        <div class="match-info">
-            <div class="info-item">
-                <div class="info-label">MAP</div>
-                <div class="info-value">${MAP_NAMES[matchData.data.attributes.mapName] || matchData.data.attributes.mapName}</div>
+        <div class="wrapper">
+            <div class="summary-bar">
+                <div class="summary-item">
+                    <div class="summary-label">Placement</div>
+                    <div class="summary-value gold">#${pStats.winPlace} / ${totalParticipants}</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-label">Map</div>
+                    <div class="summary-value">${getMapDisplayName(mapName)}</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-label">Match Type</div>
+                    <div class="summary-value">${matchTypeLabel} | ${modeBase} ${perspective}</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-label">Play Time</div>
+                    <div class="summary-value">${formatTime(pStats.timeSurvived)}</div>
+                </div>
             </div>
-            <div class="info-item">
-                <div class="info-label">GAME MODE</div>
-                <div class="info-value">${matchData.data.attributes.gameMode.toUpperCase()}</div>
+
+            <div class="col-headers">
+                <div class="col-name-header">Name</div>
+                <div class="col-header">Kills</div>
+                <div class="col-header">Damage</div>
+                <div class="col-header">Assists</div>
+                <div class="col-header">Revives</div>
+                <div class="col-header">Time Alive</div>
             </div>
-            <div class="info-item">
-                <div class="info-label">PLACEMENT</div>
-                <div class="info-value">#${playerStats.attributes.stats.winPlace} / ${totalParticipants}</div>
-            </div>
-            <div class="info-item">
-                <div class="info-label">PHASES SURVIVED</div>
-                <div class="info-value">${calculatePhasesSurvived(playerStats.attributes.stats)}</div>
-            </div>
-            <div class="info-item">
-                <div class="info-label">SURVIVAL BP EARNED</div>
-                <div class="info-value bp">+150</div>
-            </div>
-        </div>
-        
-        <div class="player-rows">
+
             ${teamMembers.map(member => {
-                const stats = member.attributes.stats;
+                const s = member.attributes.stats;
+                const levelBadge = survivalLevel != null
+                    ? `<div class="level-badge" style="border-color: ${getSurvivalTierColor(survivalLevel)}; color: ${getSurvivalTierColor(survivalLevel)};">${survivalLevel}</div>`
+                    : '';
                 return `
                 <div class="player-row">
-                    <div class="player-info">
-                        <div class="player-level">LV.${stats.level || 1}</div>
-                        <div class="player-name">${stats.name}</div>
+                    <div class="player-name-area">
+                        ${rankBadge ? `<img class="rank-badge" src="${rankBadge}"/>` : ''}
+                        ${levelBadge}
+                        <div class="player-name">${s.name}</div>
                     </div>
-                    <div class="player-stats">
-                        <div class="stat">
-                            <div class="stat-label">KILLS</div>
-                            <div class="stat-value">${stats.kills || 0}</div>
-                        </div>
-                        <div class="stat">
-                            <div class="stat-label">ASSISTS</div>
-                            <div class="stat-value">${stats.assists || 0}</div>
-                        </div>
-                        <div class="stat">
-                            <div class="stat-label">DAMAGE</div>
-                            <div class="stat-value">${Math.round(stats.damageDealt || 0)}</div>
-                        </div>
-                        <div class="stat">
-                            <div class="stat-label">TIME ALIVE</div>
-                            <div class="stat-value">${formatTime(stats.timeSurvived)}</div>
-                        </div>
-                        <div class="stat">
-                            <div class="stat-label">TOP WEAPON</div>
-                            <div class="stat-value">${getTopWeapon(stats)}</div>
-                        </div>
-                    </div>
-                </div>
-                `;
+                    <div class="player-stat">${s.kills || 0}</div>
+                    <div class="player-stat dmg">${Math.round(s.damageDealt || 0)}</div>
+                    <div class="player-stat">${s.assists || 0}</div>
+                    <div class="player-stat">${s.revives || 0}</div>
+                    <div class="player-stat">${formatTime(s.timeSurvived)}</div>
+                </div>`;
             }).join('')}
         </div>
     </body>
-    </html>
-    `;
+    </html>`;
 }
 
 module.exports = {
@@ -233,17 +266,13 @@ module.exports = {
 
         try {
             const username = interaction.options.getString('username');
-            
-            console.log('Getting player data for:', username);
             const playerData = await getPUBGPlayer(username);
-            
-            console.log('Getting match data');
+
             const latestMatchId = playerData.relationships.matches.data[0].id;
             const matchData = await getMatchData(latestMatchId);
 
-            console.log('Finding player stats');
             const playerStats = matchData.included.find(
-                item => item.type === 'participant' && 
+                item => item.type === 'participant' &&
                 item.attributes.stats.name.toLowerCase() === username.toLowerCase()
             );
 
@@ -251,10 +280,12 @@ module.exports = {
                 return await interaction.editReply('No match data found for this player.');
             }
 
-            console.log('Getting team members');
+            const gameMode = matchData.data.attributes.gameMode || '';
             const teamId = playerStats.attributes.stats.teamId;
-            const teamMembers = matchData.included.filter(
-                item => item.type === 'participant' && 
+            const isTDM = isTDMMode(gameMode);
+
+            let teamMembers = matchData.included.filter(
+                item => item.type === 'participant' &&
                 item.attributes.stats.teamId === teamId &&
                 item.attributes.stats.teamId !== 0
             ).sort((a, b) => {
@@ -263,49 +294,75 @@ module.exports = {
                 return b.attributes.stats.damageDealt - a.attributes.stats.damageDealt;
             });
 
+            // Limit team members to 4 for non-TDM modes
+            if (!isTDM) {
+                teamMembers = teamMembers.slice(0, MAX_TEAM_MEMBERS);
+            }
+
             const totalParticipants = matchData.included.filter(
                 item => item.type === 'participant'
             ).length;
 
-            console.log('Generating HTML');
-            const html = generateMatchReportHTML(matchData, playerStats, teamMembers, totalParticipants);
+            // Fetch player's ranked tier badge and survival level (non-blocking, parallel)
+            let rankBadge = '';
+            let mapImageBase64 = '';
+            let survivalLevel = null;
 
-            console.log('Launching browser');
+            const mapName = matchData.data.attributes.mapName;
+
+            const [rankResult, mapResult, masteryResult] = await Promise.allSettled([
+                (async () => {
+                    const season = await getCurrentSeason();
+                    const seasonStats = await getPlayerSeasonStats(playerData.id, season.id);
+                    const rankedStats = seasonStats.data?.attributes?.rankedGameModeStats;
+                    const tierInfo = findPlayerRankInfo(rankedStats);
+                    if (tierInfo) {
+                        return await fetchImageBase64(getRankInsigniaUrl(tierInfo.tier, tierInfo.subTier));
+                    }
+                    return '';
+                })(),
+                fetchImageBase64(getMapImageUrl(mapName)),
+                getSurvivalMastery(playerData.id)
+            ]);
+
+            if (rankResult.status === 'fulfilled') rankBadge = rankResult.value;
+            if (mapResult.status === 'fulfilled') mapImageBase64 = mapResult.value;
+            if (masteryResult.status === 'fulfilled' && masteryResult.value) {
+                survivalLevel = masteryResult.value.data?.attributes?.level ?? null;
+            }
+
+            const html = generateMatchReportHTML(matchData, playerStats, teamMembers, totalParticipants, rankBadge, mapImageBase64, survivalLevel);
+
             browser = await puppeteer.launch({
                 args: ['--no-sandbox', '--disable-setuid-sandbox'],
                 timeout: 30000
             });
 
-            console.log('Creating page');
             const page = await browser.newPage();
-            await page.setViewport({ 
-                width: 1200,
-                height: Math.max(600, 200 + (teamMembers.length * 80))
+            await page.setViewport({ width: 820, height: 600 });
+            await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 10000 });
+
+            // Measure actual content height to avoid extra black space
+            const contentHeight = await page.evaluate(() => {
+                const wrapper = document.querySelector('.wrapper');
+                return wrapper ? wrapper.offsetHeight : document.body.scrollHeight;
             });
 
-            console.log('Setting content');
-            await page.setContent(html);
-            
-            console.log('Waiting for selector');
-            await page.waitForSelector('.player-rows', { timeout: 5000 });
-
-            console.log('Taking screenshot');
             const screenshot = await page.screenshot({
                 type: 'png',
-                fullPage: true
+                clip: { x: 0, y: 0, width: 820, height: contentHeight },
+                omitBackground: false
             });
 
-            console.log('Creating attachment');
-            const attachment = new AttachmentBuilder(Buffer.from(screenshot), { 
+            const attachment = new AttachmentBuilder(Buffer.from(screenshot), {
                 name: 'match-report.png'
             });
 
-            console.log('Sending reply');
             await interaction.editReply({ files: [attachment] });
 
         } catch (error) {
             console.error('Error in match command:', error);
-            await interaction.editReply(`Error: ${error.message}\nStack: ${error.stack}`);
+            await interaction.editReply(`Error: ${error.message}`);
         } finally {
             if (browser) {
                 await browser.close();

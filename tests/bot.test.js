@@ -1,6 +1,6 @@
 const { expect } = require('chai');
 const sinon = require('sinon');
-const { PUBGApi } = require('../src/services/pubgApi');
+const axios = require('axios');
 const { formatDuration, formatDistance } = require('../src/utils/formatters');
 
 describe('PUBG Bot Tests', () => {
@@ -17,24 +17,45 @@ describe('PUBG Bot Tests', () => {
     });
 
     describe('PUBG API', () => {
-        let api;
-        let axiosStub;
+        let axiosGetStub;
 
         beforeEach(() => {
-            axiosStub = sinon.stub();
-            api = new PUBGApi();
+            axiosGetStub = sinon.stub(axios, 'get');
         });
 
         afterEach(() => {
             sinon.restore();
+            // Clear the require cache so pubgApi re-initializes cleanly
+            delete require.cache[require.resolve('../src/services/pubgApi')];
         });
 
         it('should handle player not found', async () => {
-            axiosStub.rejects({ response: { status: 404 } });
+            axiosGetStub.rejects({ response: { status: 404 } });
+            const { getPUBGPlayer } = require('../src/services/pubgApi');
             try {
-                await api.getPUBGPlayer('nonexistentplayer');
+                await getPUBGPlayer('nonexistentplayer');
+                expect.fail('Should have thrown');
             } catch (error) {
                 expect(error.message).to.equal('Player not found');
+            }
+        });
+
+        it('should return player data on success', async () => {
+            const mockPlayer = { id: 'account.abc123', type: 'player' };
+            axiosGetStub.resolves({ data: { data: [mockPlayer] } });
+            const { getPUBGPlayer } = require('../src/services/pubgApi');
+            const result = await getPUBGPlayer('testplayer');
+            expect(result).to.deep.equal(mockPlayer);
+        });
+
+        it('should handle rate limiting', async () => {
+            axiosGetStub.rejects({ response: { status: 429 } });
+            const { getPUBGPlayer } = require('../src/services/pubgApi');
+            try {
+                await getPUBGPlayer('ratelimitedplayer');
+                expect.fail('Should have thrown');
+            } catch (error) {
+                expect(error.message).to.equal('Rate limit exceeded. Please try again later.');
             }
         });
     });

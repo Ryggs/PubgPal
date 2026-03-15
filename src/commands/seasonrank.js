@@ -2,6 +2,38 @@ const { SlashCommandBuilder, AttachmentBuilder } = require('discord.js');
 const { getPUBGPlayer, getCurrentSeason, getPlayerSeasonStats } = require('../services/pubgApi');
 const sharp = require('sharp');
 
+// Preferred mode order for finding stats
+const MODE_PRIORITY = ['squad-fpp', 'squad', 'duo-fpp', 'duo', 'solo-fpp', 'solo'];
+
+const MODE_DISPLAY_NAMES = {
+    'squad-fpp': 'SQUAD FPP',
+    'squad': 'SQUAD TPP',
+    'duo-fpp': 'DUO FPP',
+    'duo': 'DUO TPP',
+    'solo-fpp': 'SOLO FPP',
+    'solo': 'SOLO TPP'
+};
+
+function findBestModeStats(rankedStats) {
+    if (!rankedStats) return null;
+
+    for (const mode of MODE_PRIORITY) {
+        const stats = rankedStats[mode];
+        if (stats && stats.roundsPlayed > 0) {
+            return { mode, stats };
+        }
+    }
+
+    // Fallback: try any mode with rounds played
+    for (const [mode, stats] of Object.entries(rankedStats)) {
+        if (stats && stats.roundsPlayed > 0) {
+            return { mode, stats };
+        }
+    }
+
+    return null;
+}
+
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('seasonrank')
@@ -21,10 +53,17 @@ module.exports = {
             const currentSeason = await getCurrentSeason();
             const seasonStats = await getPlayerSeasonStats(playerData.id, currentSeason.id);
 
-            // Generate SVG
-            const svgContent = generateSeasonRankSVG(seasonStats, currentSeason);
+            const rankedStats = seasonStats.data?.attributes?.rankedGameModeStats;
+            const bestMode = findBestModeStats(rankedStats);
 
-            // Convert to PNG
+            if (!bestMode) {
+                return await interaction.editReply(
+                    `No ranked statistics found for **${username}** this season.`
+                );
+            }
+
+            const svgContent = generateSeasonRankSVG(bestMode.stats, bestMode.mode, currentSeason);
+
             const pngBuffer = await sharp(Buffer.from(svgContent))
                 .png()
                 .toBuffer();
@@ -39,110 +78,86 @@ module.exports = {
     }
 };
 
-function generateSeasonRankSVG(seasonStats, currentSeason) {
-    const stats = seasonStats.data.attributes.rankedGameModeStats['squad-fpp'] || 
-                 seasonStats.data.attributes.rankedGameModeStats.squad;
+function generateSeasonRankSVG(stats, mode, currentSeason) {
+    const modeName = MODE_DISPLAY_NAMES[mode] || mode.toUpperCase();
+    const kd = (stats.kills / Math.max(1, stats.deaths || 1)).toFixed(2);
+    const avgDamage = Math.round(stats.damageDealt / Math.max(1, stats.roundsPlayed));
+    const winRate = stats.roundsPlayed > 0
+        ? ((stats.wins / stats.roundsPlayed) * 100).toFixed(1)
+        : '0.0';
+    const top10s = stats.top10Ratio != null
+        ? Math.round(stats.top10Ratio * stats.roundsPlayed)
+        : stats.top10s || 0;
+
+    // Season ID formatting — strip prefix if present
+    const seasonLabel = currentSeason.id.replace(/^division\.bro\.official\.pc-[\d]+-?/, 'Season ');
 
     return `
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 800">
+    <svg xmlns="http://www.w3.org/2000/svg" width="800" height="420">
         <defs>
-            <style>
-                @font-face {
-                    font-family: 'PUBGFont';
-                    src: url('/assets/fonts/pubg-font.ttf');
-                }
-                .title { font-family: 'PUBGFont', sans-serif; font-size: 32px; }
-                .stat-label { font-family: 'PUBGFont', sans-serif; font-size: 16px; }
-                .stat-value { font-family: 'PUBGFont', sans-serif; font-size: 24px; }
-                .medal-count { font-family: 'PUBGFont', sans-serif; font-size: 28px; }
-            </style>
-
-            <!-- Medal patterns and gradients -->
-            <linearGradient id="bronzeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" style="stop-color:#CD7F32"/>
-                <stop offset="100%" style="stop-color:#8B4513"/>
-            </linearGradient>
-            <linearGradient id="silverGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" style="stop-color:#C0C0C0"/>
-                <stop offset="100%" style="stop-color:#808080"/>
-            </linearGradient>
-            <linearGradient id="goldGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+            <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="0%">
                 <stop offset="0%" style="stop-color:#FFD700"/>
                 <stop offset="100%" style="stop-color:#DAA520"/>
+            </linearGradient>
+            <linearGradient id="bgGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" style="stop-color:#1a1a1a"/>
+                <stop offset="100%" style="stop-color:#111"/>
             </linearGradient>
         </defs>
 
         <!-- Background -->
-        <rect width="100%" height="100%" fill="#1A1A1A"/>
+        <rect width="800" height="420" fill="url(#bgGrad)" rx="8"/>
 
-        <!-- Season Title -->
-        <text x="50" y="50" class="title" fill="#FFFFFF">SEASON ${currentSeason.id}</text>
-        <text x="50" y="80" class="stat-label" fill="#888888">TPP Squad</text>
+        <!-- Header -->
+        <text x="40" y="45" fill="#FFD700" font-family="Arial, Helvetica, sans-serif" font-size="24" font-weight="bold" letter-spacing="2">${seasonLabel.toUpperCase()}</text>
+        <text x="40" y="70" fill="#888" font-family="Arial, sans-serif" font-size="14" letter-spacing="1">${modeName}</text>
 
-        <!-- Main Stats -->
-        <g transform="translate(50,120)">
-            <!-- First Row -->
-            <g transform="translate(0,0)">
-                <text x="0" y="0" class="stat-label" fill="#888888">WINS</text>
-                <text x="0" y="30" class="stat-value" fill="#FFFFFF">${stats.wins}</text>
-                
-                <text x="200" y="0" class="stat-label" fill="#888888">TOP 10</text>
-                <text x="200" y="30" class="stat-value" fill="#FFFFFF">
-                    ${Math.round(stats.top10Ratio * stats.roundsPlayed)}
-                </text>
-                
-                <text x="400" y="0" class="stat-label" fill="#888888">MATCHES</text>
-                <text x="400" y="30" class="stat-value" fill="#FFFFFF">${stats.roundsPlayed}</text>
-            </g>
+        <!-- Divider -->
+        <line x1="40" y1="85" x2="760" y2="85" stroke="#333" stroke-width="1"/>
 
-            <!-- Second Row -->
-            <g transform="translate(0,80)">
-                <text x="0" y="0" class="stat-label" fill="#888888">AVG PLACEMENT</text>
-                <text x="0" y="30" class="stat-value" fill="#FFFFFF">${Math.round(stats.avgRank || 0)}</text>
-                
-                <text x="200" y="0" class="stat-label" fill="#888888">K/D RATIO</text>
-                <text x="200" y="30" class="stat-value" fill="#FFFFFF">
-                    ${(stats.kills / Math.max(1, stats.roundsPlayed)).toFixed(1)}
-                </text>
-                
-                <text x="400" y="0" class="stat-label" fill="#888888">AVG DAMAGE</text>
-                <text x="400" y="30" class="stat-value" fill="#FFFFFF">
-                    ${Math.round(stats.damageDealt / Math.max(1, stats.roundsPlayed))}
-                </text>
-            </g>
+        <!-- Row 1 -->
+        <g transform="translate(40,110)">
+            <text x="0" y="0" fill="#666" font-family="Arial, sans-serif" font-size="12" letter-spacing="1.5">WINS</text>
+            <text x="0" y="32" fill="url(#goldGrad)" font-family="Arial, sans-serif" font-size="36" font-weight="bold">${stats.wins}</text>
+
+            <text x="180" y="0" fill="#666" font-family="Arial, sans-serif" font-size="12" letter-spacing="1.5">TOP 10</text>
+            <text x="180" y="32" fill="white" font-family="Arial, sans-serif" font-size="36" font-weight="bold">${top10s}</text>
+
+            <text x="360" y="0" fill="#666" font-family="Arial, sans-serif" font-size="12" letter-spacing="1.5">MATCHES</text>
+            <text x="360" y="32" fill="white" font-family="Arial, sans-serif" font-size="36" font-weight="bold">${stats.roundsPlayed}</text>
+
+            <text x="540" y="0" fill="#666" font-family="Arial, sans-serif" font-size="12" letter-spacing="1.5">WIN RATE</text>
+            <text x="540" y="32" fill="white" font-family="Arial, sans-serif" font-size="36" font-weight="bold">${winRate}%</text>
         </g>
 
-        <!-- Survival Level -->
-        <g transform="translate(50,300)">
-            <text x="0" y="0" class="stat-label" fill="#FFFFFF">SURVIVAL LEVEL</text>
-            <circle cx="50" cy="50" r="40" fill="#2A2A2A" stroke="#CD7F32" stroke-width="2"/>
-            <text x="50" y="60" class="stat-value" fill="#FFFFFF" text-anchor="middle">
-                Lv.${stats.level || 1}
-            </text>
-            <text x="0" y="120" class="stat-label" fill="#888888">AVG SURVIVAL TIME</text>
-            <text x="0" y="150" class="stat-value" fill="#FFFFFF">
-                ${formatTime(stats.averageTimeAlive || 0)}
-            </text>
+        <!-- Row 2 -->
+        <g transform="translate(40,210)">
+            <text x="0" y="0" fill="#666" font-family="Arial, sans-serif" font-size="12" letter-spacing="1.5">K/D RATIO</text>
+            <text x="0" y="32" fill="white" font-family="Arial, sans-serif" font-size="36" font-weight="bold">${kd}</text>
+
+            <text x="180" y="0" fill="#666" font-family="Arial, sans-serif" font-size="12" letter-spacing="1.5">KILLS</text>
+            <text x="180" y="32" fill="white" font-family="Arial, sans-serif" font-size="36" font-weight="bold">${stats.kills}</text>
+
+            <text x="360" y="0" fill="#666" font-family="Arial, sans-serif" font-size="12" letter-spacing="1.5">AVG DAMAGE</text>
+            <text x="360" y="32" fill="white" font-family="Arial, sans-serif" font-size="36" font-weight="bold">${avgDamage}</text>
+
+            <text x="540" y="0" fill="#666" font-family="Arial, sans-serif" font-size="12" letter-spacing="1.5">AVG RANK</text>
+            <text x="540" y="32" fill="white" font-family="Arial, sans-serif" font-size="36" font-weight="bold">#${Math.round(stats.avgRank || 0)}</text>
         </g>
 
-        <!-- Medals Section -->
-        <g transform="translate(500,300)">
-            <text x="0" y="0" class="stat-label" fill="#FFFFFF">MEDALS</text>
-            
-            <!-- Medal displays -->
-            <g transform="translate(0,30)">
-                <!-- Gold -->
-                <circle cx="50" cy="50" r="30" fill="url(#goldGradient)"/>
-                <text x="50" y="60" class="medal-count" fill="#FFFFFF" text-anchor="middle">33</text>
-                
-                <!-- Silver -->
-                <circle cx="150" cy="50" r="30" fill="url(#silverGradient)"/>
-                <text x="150" y="60" class="medal-count" fill="#FFFFFF" text-anchor="middle">24</text>
-                
-                <!-- Bronze -->
-                <circle cx="250" cy="50" r="30" fill="url(#bronzeGradient)"/>
-                <text x="250" y="60" class="medal-count" fill="#FFFFFF" text-anchor="middle">8</text>
-            </g>
+        <!-- Row 3 -->
+        <g transform="translate(40,310)">
+            <text x="0" y="0" fill="#666" font-family="Arial, sans-serif" font-size="12" letter-spacing="1.5">ASSISTS</text>
+            <text x="0" y="32" fill="white" font-family="Arial, sans-serif" font-size="36" font-weight="bold">${stats.assists || 0}</text>
+
+            <text x="180" y="0" fill="#666" font-family="Arial, sans-serif" font-size="12" letter-spacing="1.5">HEADSHOT KILLS</text>
+            <text x="180" y="32" fill="white" font-family="Arial, sans-serif" font-size="36" font-weight="bold">${stats.headshotKills || 0}</text>
+
+            <text x="360" y="0" fill="#666" font-family="Arial, sans-serif" font-size="12" letter-spacing="1.5">LONGEST KILL</text>
+            <text x="360" y="32" fill="white" font-family="Arial, sans-serif" font-size="36" font-weight="bold">${Math.round(stats.longestKill || 0)}m</text>
+
+            <text x="540" y="0" fill="#666" font-family="Arial, sans-serif" font-size="12" letter-spacing="1.5">AVG SURVIVE TIME</text>
+            <text x="540" y="32" fill="white" font-family="Arial, sans-serif" font-size="36" font-weight="bold">${formatTime(stats.avgTimeSurvived || 0)}</text>
         </g>
     </svg>`;
 }
